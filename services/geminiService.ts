@@ -2,7 +2,7 @@ import { GoogleGenAI, Type, FunctionDeclaration, GenerateContentResponse } from 
 import { AgentMode, Message, Sender, StoredDocument } from '../types';
 import { listCalendarEvents, createCalendarEvent, searchEmails, getEmailDetail, sendEmail } from './googleApi';
 
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || '';
+const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_GOOGLE_GMAIL_API_KEY || '';
 export const IS_DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
 
 const ai = new GoogleGenAI({ apiKey: API_KEY });
