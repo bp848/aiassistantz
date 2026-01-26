@@ -11,9 +11,7 @@ const IntegrationSetup: React.FC<IntegrationSetupProps> = ({ onComplete }) => {
   const [connectedEmail, setConnectedEmail] = useState<string | undefined>();
   const [error, setError] = useState<string | null>(null);
 
-  const googleOAuthScopes =
-    (import.meta.env.VITE_GOOGLE_SCOPES as string | undefined)?.split(',').join(' ') ||
-    'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/calendar';
+  const googleOAuthScopes = 'openid email profile https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/calendar';
 
   useEffect(() => {
     const checkExistingConnection = async () => {

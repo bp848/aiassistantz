@@ -15,9 +15,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthComplete }) => {
   const [name, setName] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
 
-  const googleOAuthScopes =
-    (import.meta.env.VITE_GOOGLE_SCOPES as string | undefined)?.split(',').join(' ') ||
-    'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/calendar';
+  const googleOAuthScopes = 'openid email profile https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/calendar';
 
   // Handle Supabase OAuth callback
   useEffect(() => {
