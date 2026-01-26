@@ -1,23 +1,40 @@
-import { GoogleGenAI, Type, FunctionDeclaration, GenerateContentResponse } from '@google/genai';
+import { Type, FunctionDeclaration, GenerateContentResponse } from '@google/genai';
 import { AgentMode, Message, Sender, StoredDocument } from '../types';
 import { listCalendarEvents, createCalendarEvent, searchEmails, getEmailDetail, sendEmail } from './googleApi';
 import { supabase } from './supabaseClient';
 
 export const IS_DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
 
-const getGeminiApiKey = (): string => {
-  const apiKey = (import.meta.env.VITE_GEMINI_API_KEY as string | undefined) || '';
-  return apiKey.trim();
+const getGeminiProxyUrl = () => {
+  const baseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+  if (!baseUrl) throw new Error('Missing VITE_SUPABASE_URL for Gemini proxy call.');
+  return `${baseUrl}/functions/v1/gemini-proxy`;
 };
 
-let ai: GoogleGenAI | undefined;
-const getAi = () => {
-  const apiKey = getGeminiApiKey();
-  if (!apiKey) {
-    throw new Error('Missing VITE_GEMINI_API_KEY. Add a valid Gemini API key to your environment.');
+const callGeminiProxy = async (payload: any) => {
+  const url = getGeminiProxyUrl();
+  let accessToken: string | undefined;
+  if (supabase) {
+    const {
+      data: { session }
+    } = await supabase.auth.getSession();
+    accessToken = session?.access_token || undefined;
   }
-  if (!ai) ai = new GoogleGenAI({ apiKey });
-  return ai;
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: accessToken ? `Bearer ${accessToken}` : ''
+    },
+    body: JSON.stringify(payload)
+  });
+
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(text || `Gemini proxy failed (${res.status})`);
+  }
+  return JSON.parse(text || '{}');
 };
 
 export const COMPANY_PROFILE = `
@@ -32,17 +49,14 @@ export const initializeUserContext = (userName: string) => {
 };
 
 export const generateSecretaryImage = async (prompt: string): Promise<string> => {
-  if (IS_DEMO_MODE && !getGeminiApiKey()) return '';
+  if (IS_DEMO_MODE) return '';
   try {
-    const ai = getAi();
-    const response = await ai.models.generateContent({
+    const response = await callGeminiProxy({
       model: 'gemini-2.5-flash-image',
-      contents: {
-        parts: [{ text: `Professional portrait of an executive secretary. Appearance: ${prompt}` }]
-      },
+      contents: [{ role: 'user', parts: [{ text: `Professional portrait of an executive secretary. Appearance: ${prompt}` }] }],
       config: { imageConfig: { aspectRatio: '1:1' } }
     });
-    const part = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+    const part = response.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData);
     if (part?.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
   } catch (error) {
     console.error('Image generation failed:', error);
@@ -162,14 +176,10 @@ export const streamGeminiResponse = async (
   knowledgeBase: StoredDocument[] = []
 ) => {
   try {
-    const apiKey = getGeminiApiKey();
-    if (!apiKey) {
-      if (IS_DEMO_MODE) {
-        onChunk('Demo mode: LLM is not configured. Set VITE_GEMINI_API_KEY to enable responses.');
-        onFinish();
-        return;
-      }
-      throw new Error('Missing VITE_GEMINI_API_KEY. Add a valid Gemini API key to your environment.');
+    if (IS_DEMO_MODE) {
+      onChunk('Demo mode: LLM is not configured.');
+      onFinish();
+      return;
     }
 
     let modelName = 'gemini-3-flash-preview';
@@ -191,90 +201,65 @@ export const streamGeminiResponse = async (
       tools = [{ googleMaps: {} }];
     }
 
-    const ai = getAi();
-    let chat = ai.chats.create({
-      model: modelName,
-      config: {
-        systemInstruction: `${IS_DEMO_MODE ? '【デモモード】実データへの接続は許可されていません。' : ''}あなたは${currentUserName}社長の専属AI秘書です。
+    const systemInstruction = `${IS_DEMO_MODE ? '【デモモード】実データへの接続は許可されていません。' : ''}あなたは${currentUserName}社長の専属AI秘書です。
 ツール呼び出しは実際のGoogle Calendar/Gmail APIを叩きます。アクセス権が無い場合は正直に不足を伝えてください。
 ${kbContext}
 社長名: ${currentUserName}
-会社プロフィール: ${COMPANY_PROFILE}`,
-        tools,
-        thinkingConfig
-      }
-    });
+会社プロフィール: ${COMPANY_PROFILE}`;
 
     const parts: any[] = [{ text: currentMessage }];
     if (attachment) parts.push({ inlineData: { mimeType: attachment.mimeType, data: attachment.data } });
 
-    const toolCallingUnsupported = (msg: string) => msg.includes('Tool use with function calling is unsupported');
+    const contents: any[] = [{ role: 'user', parts }];
+    const allowFunctionCalling = tools.some(t => t?.functionDeclarations);
 
-    let allowFunctionCalling = tools.some(t => t?.functionDeclarations);
-    let stream: any;
-    try {
-      stream = await chat.sendMessageStream({ message: { parts } });
-    } catch (e: any) {
-      const msg = String(e?.message || e || '');
-      if (!toolCallingUnsupported(msg)) throw e;
+    const extractParts = (response: any) => response?.candidates?.[0]?.content?.parts || [];
+    const extractText = (response: any) =>
+      extractParts(response)
+        .filter((p: any) => p?.text)
+        .map((p: any) => p.text)
+        .join('');
+    const extractFunctionCalls = (response: any) =>
+      extractParts(response)
+        .filter((p: any) => p?.functionCall)
+        .map((p: any) => p.functionCall);
 
-      // Fallback: retry without tools/function calling.
-      allowFunctionCalling = false;
-      onChunk('Note: Tool/function calling is unsupported for this model/request. Retrying without tools.');
-      chat = ai.chats.create({
+    let response: GenerateContentResponse | null = null;
+    let guard = 0;
+    while (guard < 3) {
+      response = await callGeminiProxy({
         model: modelName,
+        contents,
         config: {
-          systemInstruction: `Tool/function calling is disabled for this request.`,
-          tools: [],
+          systemInstruction,
+          tools: allowFunctionCalling ? tools : [],
           thinkingConfig
         }
       });
-      stream = await chat.sendMessageStream({ message: { parts } });
+
+      const functionCalls = allowFunctionCalling ? extractFunctionCalls(response) : [];
+      if (!functionCalls || functionCalls.length === 0) break;
+
+      const responses: any[] = [];
+      for (const fc of functionCalls) {
+        const res = await handleToolCall(fc.name, fc.args);
+        responses.push({ functionResponse: { id: fc.id, name: fc.name, response: { result: res } } });
+      }
+      contents.push({ role: 'tool', parts: responses });
+      guard += 1;
     }
 
-    const processStream = async (s: any) => {
-      // Collect all chunks first to handle function calls properly
-      const allChunks: GenerateContentResponse[] = [];
-      for await (const chunk of s) {
-        allChunks.push(chunk as GenerateContentResponse);
-      }
-
-      // Check if any chunk contains function calls
-      const allFunctionCalls: any[] = [];
-      for (const c of allChunks) {
-        const fcs = allowFunctionCalling ? c.functionCalls : undefined;
-        if (fcs && fcs.length > 0) {
-          allFunctionCalls.push(...fcs);
-        }
-      }
-
-      // If there are function calls, handle them and recurse
-      if (allowFunctionCalling && allFunctionCalls.length > 0) {
-        const responses: any[] = [];
-        for (const fc of allFunctionCalls) {
-          const res = await handleToolCall(fc.name, fc.args);
-          responses.push({ functionResponse: { id: fc.id, name: fc.name, response: { result: res } } });
-        }
-        const nextStream = await chat.sendMessageStream({ message: { parts: responses } });
-        await processStream(nextStream);
-      } else {
-        // No function calls - output all text
-        for (const c of allChunks) {
-          if (c.text) {
-            onChunk(c.text, c.candidates?.[0]?.groundingMetadata);
-          }
-        }
-      }
-    };
-
-    await processStream(stream);
+    if (response) {
+      const text = extractText(response);
+      if (text) onChunk(text, response.candidates?.[0]?.groundingMetadata);
+    }
     onFinish();
   } catch (e: any) {
     const message = String(e?.message || e || '');
     if (message.includes('API key expired') || message.includes('API_KEY_INVALID')) {
       onError(
         new Error(
-          'Gemini API key is invalid/expired. Replace VITE_GEMINI_API_KEY with an active key (Google AI Studio), then restart the dev server.'
+          'Gemini API key is invalid/expired. Update GEMINI_API_KEY in Supabase Edge Function env, then redeploy.'
         )
       );
       return;
