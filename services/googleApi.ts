@@ -29,17 +29,17 @@ const GOOGLE_SCOPES = {
 
 let tokenInfoCache:
   | {
-      token: string;
-      scopes: Set<GoogleScope>;
-      fetchedAtMs: number;
-    }
+    token: string;
+    scopes: Set<GoogleScope>;
+    fetchedAtMs: number;
+  }
   | undefined;
 
 let lastAuthLog:
   | {
-      message: string;
-      atMs: number;
-    }
+    message: string;
+    atMs: number;
+  }
   | undefined;
 
 const logAuthIssue = (message: string) => {
@@ -66,7 +66,11 @@ const getTokenInfo = async (token: string): Promise<{ scopes: Set<GoogleScope> }
 
 // Get Google token from localStorage (saved during OAuth callback)
 const getGoogleTokenFromLocalStorage = (): string | null => {
-  return localStorage.getItem('google_access_token');
+  const token = localStorage.getItem('google_access_token');
+  if (!token) {
+    console.warn('[googleApi] localStorage google_access_token missing');
+  }
+  return token;
 };
 
 // Refresh Google token using refresh_token stored in localStorage
@@ -83,6 +87,7 @@ const refreshGoogleToken = async (): Promise<string | null> => {
   }
 
   try {
+    console.log('[googleApi] Refreshing Google access token using refresh_token');
     const response = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -95,17 +100,19 @@ const refreshGoogleToken = async (): Promise<string | null> => {
     });
 
     if (!response.ok) {
-      console.warn('Failed to refresh Google token');
+      const errText = await response.text().catch(() => '');
+      console.warn('[googleApi] Failed to refresh Google token', errText);
       return null;
     }
 
     const data = await response.json();
     if (data.access_token) {
       localStorage.setItem('google_access_token', data.access_token);
+      console.log('[googleApi] Refreshed google_access_token saved to localStorage');
       return data.access_token;
     }
   } catch (e) {
-    console.warn('Error refreshing Google token:', e);
+    console.warn('[googleApi] Error refreshing Google token:', e);
   }
   return null;
 };
@@ -133,6 +140,7 @@ const requireToken = async (requiredScopes: readonly GoogleScope[] = []): Promis
     }
 
     let token = session.provider_token;
+    console.log('[googleApi] Session provider_token', token ? 'present' : 'missing');
 
     // If no provider_token in session, try localStorage
     if (!token) {
@@ -364,7 +372,7 @@ export const getEmailDetail = async (args: { messageId: string; token?: string }
 
 export const sendEmail = async (args: { to: string; subject: string; body: string }) => {
   const token = await requireToken(GOOGLE_SCOPES.gmailSend);
-  
+
   let from = 'me';
   try {
     const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
