@@ -340,6 +340,7 @@ export const searchEmails = async (args: any): Promise<GmailMessageSummary[]> =>
   }
   if (!res.ok) {
     const err = await res.text();
+    console.warn('[googleApi] Gmail search error body:', err);
     throw new Error(`Gmail search failed: ${err}`);
   }
   const data = await res.json();
@@ -371,6 +372,7 @@ export const getEmailDetail = async (args: { messageId: string; token?: string }
   }
   if (!res.ok) {
     const err = await res.text();
+    console.warn('[googleApi] Gmail get_detail error body:', err);
     throw new Error(`Gmail get_detail failed: ${err}`);
   }
   const data = await res.json();
