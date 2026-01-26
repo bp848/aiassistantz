@@ -1,0 +1,51 @@
+# MCP Supabase 設定完了
+
+## 設定内容
+- MCPサーバー: Supabase
+- プロジェクト参照: frbdpmqxgtgnjeccpbub
+- 設定ファイル場所: C:\Users\ishij\AppData\Local\Programs\Windsurf\.codeium\windsurf\mcp_config.json
+
+## 使用方法
+
+### 1. Windsurfの再起動
+設定を有効にするためにWindsurfを再起動してください。
+
+### 2. MCPサーバーの確認
+再起動後、MCPサーバーが自動的に接続されます。接続状態はWindsurfのステータスバーで確認できます。
+
+### 3. Supabase機能の利用
+MCP経由で以下のSupabase機能が利用可能になります：
+- データベース操作
+- Edge Functionの管理
+- 認証設定
+- ストレージ管理
+- リアルタイム機能
+
+### 4. コマンド例
+AIアシスタントに以下のようなリクエストが可能：
+- "Supabaseプロジェクトのテーブル一覧を表示"
+- "新しいEdge Functionをデプロイ"
+- "データベースマイグレーションを実行"
+
+## 設定ファイル内容
+```json
+{
+  "mcpServers": {
+    "supabase": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://mcp.supabase.com/mcp?project_ref=frbdpmqxgtgnjeccpbub"
+      ]
+    }
+  }
+}
+```
+
+## 注意事項
+- 初回接続時にnpmパッケージのダウンロードが行われる場合があります
+- インターネット接続が必要です
+- プロジェクトの権限によっては一部操作が制限される場合があります
+
+設定日時: 2026年1月26日

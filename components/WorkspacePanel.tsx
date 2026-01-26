@@ -17,12 +17,11 @@ const WorkspacePanel: React.FC<WorkspacePanelProps> = ({ mode, lastAiMessage, on
   const [isSyncing, setIsSyncing] = useState(false);
   const [selectedEmail, setSelectedEmail] = useState<any>(null);
 
-  const refreshData = () => {
+  const refreshData = async () => {
     setIsSyncing(true);
-    setTimeout(() => {
-      setDashboard(getDashboardData());
-      setIsSyncing(false);
-    }, 600);
+    const data = await getDashboardData();
+    setDashboard(data);
+    setIsSyncing(false);
   };
 
   useEffect(() => {

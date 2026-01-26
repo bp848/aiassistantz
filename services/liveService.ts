@@ -2,7 +2,7 @@
 import { GoogleGenAI, Modality } from "@google/genai";
 import { arrayBufferToBase64, base64ToUint8Array, decodeAudioData, float32ToInt16 } from "./audioUtils";
 
-const API_KEY = process.env.API_KEY || '';
+const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || '';
 // Use the recommended model for real-time conversation tasks
 const MODEL_NAME = 'gemini-2.5-flash-native-audio-preview-12-2025';
 

@@ -1,19 +1,64 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Calendar, Mail, Check, ShieldCheck, ArrowRight, Loader2 } from 'lucide-react';
+import { supabase } from '../services/supabaseClient';
 
 interface IntegrationSetupProps {
-  onComplete: () => void;
+  onComplete: (profile?: { email?: string; name?: string }) => void;
 }
 
 const IntegrationSetup: React.FC<IntegrationSetupProps> = ({ onComplete }) => {
   const [connecting, setConnecting] = useState<'none' | 'google' | 'completed'>('none');
+  const [connectedEmail, setConnectedEmail] = useState<string | undefined>();
+  const [error, setError] = useState<string | null>(null);
 
-  const handleConnectGoogle = () => {
-    setConnecting('google');
-    setTimeout(() => {
-      setConnecting('completed');
-    }, 2000);
+  useEffect(() => {
+    const checkExistingConnection = async () => {
+      if (!supabase) return;
+      
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user?.email) {
+          setConnectedEmail(session.user.email);
+          setConnecting('completed');
+        }
+      } catch (e) {
+        console.error('Failed to check existing connection:', e);
+      }
+    };
+    
+    checkExistingConnection();
+  }, []);
+
+  const handleConnectGoogle = async () => {
+    try {
+      if (!supabase) {
+        throw new Error('Supabase is not configured');
+      }
+
+      setError(null);
+      setConnecting('google');
+      
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin,
+          scopes: 'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/calendar',
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent'
+          }
+        }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      console.log('Google OAuth initiated for integration');
+    } catch (e: any) {
+      setError(e?.message || 'Google integration failed');
+      setConnecting('none');
+    }
   };
 
   return (
@@ -23,9 +68,9 @@ const IntegrationSetup: React.FC<IntegrationSetupProps> = ({ onComplete }) => {
           <div className="w-16 h-16 bg-cyber-cyan/10 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-cyber-cyan/20 shadow-lg shadow-cyber-cyan/5">
             <ShieldCheck size={32} className="text-cyber-cyan" />
           </div>
-          <h2 className="text-2xl font-serif font-bold mb-3 tracking-widest">初期設定：データ連携</h2>
+          <h2 className="text-2xl font-serif font-bold mb-3 tracking-widest">ワークスペース接続</h2>
           <p className="text-cyber-slate text-sm leading-relaxed">
-            AI秘書が社長の業務を代行するため、Google Workspaceとの連携を推奨します。カレンダーの調整やメールの作成が可能になります。
+            実際のGoogle APIに接続します。偽のタイマーやモックデータはありません。秘書が実際にイベントを一覧表示し、メールを読み、返信できるようにGmailとカレンダーを承認してください。
           </p>
         </div>
 
@@ -43,22 +88,22 @@ const IntegrationSetup: React.FC<IntegrationSetupProps> = ({ onComplete }) => {
                 </div>
                 <div>
                   <h3 className="font-bold text-lg">Google Workspace</h3>
-                  <p className="text-xs text-cyber-slate">Gmail & カレンダー連携</p>
+                  <p className="text-xs text-cyber-slate">Gmail + カレンダー</p>
                 </div>
               </div>
               {connecting === 'completed' && <Check className="text-green-500" size={24} />}
             </div>
 
             <p className="text-xs text-gray-500 mb-6 leading-relaxed">
-              メールの検索・要約・下書き、およびカレンダーの予定取得・登録の権限をAI秘書に付与します。
+              <code>VITE_GOOGLE_SCOPES</code>で設定されたスコープで承認します。実際のアクセストークンを使用してGmailとカレンダーを呼び出します—ローカルモックは残っていません。
             </p>
 
             {connecting === 'completed' ? (
               <div className="bg-green-500/10 border border-green-500/20 p-3 rounded-2xl flex items-center justify-center gap-2 text-green-500 text-xs font-bold">
-                <Check size={14} /> 連携済み：hashimoto@b-p.co.jp
+                <Check size={14} /> {connectedEmail || 'Googleユーザー'} として接続されました
               </div>
             ) : (
-              <button 
+              <button
                 onClick={handleConnectGoogle}
                 disabled={connecting === 'google'}
                 className="w-full bg-white text-black font-bold py-4 rounded-2xl hover:bg-gray-200 transition-all flex items-center justify-center gap-2 shadow-xl active:scale-[0.98]"
@@ -69,26 +114,36 @@ const IntegrationSetup: React.FC<IntegrationSetupProps> = ({ onComplete }) => {
                     認証中...
                   </>
                 ) : (
-                  <>Googleで連携する</>
+                  <>Google接続</>
                 )}
               </button>
             )}
           </div>
 
+          {error && (
+            <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-center text-red-400 text-xs">
+              {error}
+            </div>
+          )}
+
           <div className="p-4 bg-gray-900/20 border border-white/5 rounded-2xl text-center">
-             <button 
-               onClick={onComplete}
-               disabled={connecting === 'google'}
-               className={`w-full py-4 font-bold text-sm transition-all rounded-2xl flex items-center justify-center gap-2 ${connecting === 'completed' ? 'bg-cyber-cyan text-white shadow-cyber-cyan/20 shadow-xl' : 'text-gray-500 hover:text-gray-300'}`}
-             >
-               {connecting === 'completed' ? '次へ進む' : '後で設定する'}
-               <ArrowRight size={16} />
-             </button>
+            <button
+              onClick={() => onComplete({ email: connectedEmail })}
+              disabled={connecting === 'google'}
+              className={`w-full py-4 font-bold text-sm transition-all rounded-2xl flex items-center justify-center gap-2 ${
+                connecting === 'completed' ? 'bg-cyber-cyan text-black shadow-cyber-cyan/20 shadow-xl' : 'text-gray-500 hover:text-gray-300'
+              }`}
+            >
+              {connecting === 'completed' ? '次へ：オンボーディング' : '今はスキップ'}
+              <ArrowRight size={16} />
+            </button>
           </div>
         </div>
 
-        <div className="mt-12 text-center opacity-40">
-           <p className="text-[10px] uppercase tracking-[0.3em]">プライバシー＆暗号化プロトコル 実行中</p>
+        {error && <div className="mt-4 text-center text-xs text-red-400 font-semibold">{error}</div>}
+
+        <div className="mt-12 text-center opacity-60">
+          <p className="text-[10px] uppercase tracking-[0.3em]">もうダミー連携はありません。ここはすべて実際のAPIを呼び出します。</p>
         </div>
       </div>
     </div>

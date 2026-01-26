@@ -1,15 +1,33 @@
 
 import React from 'react';
 import { AgentMode } from '../types';
-import { Briefcase, PenTool, CalendarClock, BrainCircuit, Globe, Bell, ShieldCheck, Users, FolderOpen, Clock, User, Mail, Check, Calendar } from 'lucide-react';
+import { Briefcase, PenTool, CalendarClock, BrainCircuit, Globe, Bell, ShieldCheck, Users, FolderOpen, Clock, User, Mail, Check, Calendar, LogOut } from 'lucide-react';
+import { getUserProfile } from '../services/userService';
 
 interface SetupScreenProps {
   onSelectMode: (mode: AgentMode) => void;
   onOpenFileWarehouse: () => void;
   onOpenHistory: () => void;
+  onLogout: () => Promise<void>;
 }
 
-const SetupScreen: React.FC<SetupScreenProps> = ({ onSelectMode, onOpenFileWarehouse, onOpenHistory }) => {
+const SetupScreen: React.FC<SetupScreenProps> = ({ onSelectMode, onOpenFileWarehouse, onOpenHistory, onLogout }) => {
+  const [currentUser, setCurrentUser] = React.useState<{email: string} | null>(null);
+
+  React.useEffect(() => {
+    const loadUser = async () => {
+      console.log('SetupScreen: Loading user profile...');
+      const profile = await getUserProfile();
+      console.log('SetupScreen: Profile result:', profile);
+      if (profile) {
+        console.log('SetupScreen: Setting current user:', profile.user.email);
+        setCurrentUser({ email: profile.user.email });
+      } else {
+        console.log('SetupScreen: No profile found');
+      }
+    };
+    loadUser();
+  }, []);
   const options = [
     { mode: AgentMode.SCHEDULE, label: '今日の予定', icon: CalendarClock },
     { mode: AgentMode.MINUTES, label: '会議・議事録', icon: Users },
@@ -86,20 +104,29 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onSelectMode, onOpenFileWareh
               </div>
               <div className="flex flex-col gap-1">
                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] text-gray-200 truncate">hashimoto@b-p.co.jp</span>
+                    <span className="text-[11px] text-gray-200 truncate">{currentUser?.email || 'user@example.com'}</span>
                     <div className="flex gap-1">
                        <Mail size={10} className="text-red-500" />
                        <Calendar size={10} className="text-blue-500" />
                     </div>
                  </div>
                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] text-gray-400 truncate opacity-60">shoichi.private@gmail.com</span>
+                    <span className="text-[11px] text-gray-400 truncate opacity-60">{currentUser?.email || 'user@example.com'}</span>
                     <Check size={10} className="text-green-500" />
                  </div>
               </div>
            </div>
         </div>
       </div>
+      
+      {/* Logout button */}
+      <button
+        onClick={onLogout}
+        className="absolute top-4 right-4 p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-all"
+        title="ログアウト"
+      >
+        <LogOut size={20} />
+      </button>
     </div>
   );
 };

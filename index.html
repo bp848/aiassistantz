@@ -1,12 +1,14 @@
-
 <!DOCTYPE html>
 <html lang="ja">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>クラウド社長室Z AIエージェント秘書</title>
+    <title>クラウド社長室Z AI秘書</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Inter:wght@300;400;500;600&family=Noto+Serif+JP:wght@400;700&display=swap" rel="stylesheet">
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Inter:wght@300;400;500;600&family=Noto+Serif+JP:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
     <script>
       tailwind.config = {
         theme: {
@@ -17,16 +19,16 @@
             },
             colors: {
               'presidential-navy': '#0b1120',
-              'cyber-cyan': '#22d3ee',        /* Cyan-400 */
-              'cyber-cyan-light': '#67e8f9',  /* Cyan-300 */
-              'cyber-cyan-dark': '#0891b2',   /* Cyan-600 */
+              'cyber-cyan': '#22d3ee',
+              'cyber-cyan-light': '#67e8f9',
+              'cyber-cyan-dark': '#0891b2',
               'cyber-slate': '#94a3b8',
-              'presidential-gold': '#22d3ee', /* Fallback alias to prevent breaks */
-              'presidential-gold-light': '#67e8f9', /* Fallback alias */
+              'presidential-gold': '#22d3ee',
+              'presidential-gold-light': '#67e8f9',
             },
             animation: {
-              'fadeIn': 'fadeIn 0.5s ease-out',
-              'slideInRight': 'slideInRight 0.3s ease-out',
+              fadeIn: 'fadeIn 0.5s ease-out',
+              slideInRight: 'slideInRight 0.3s ease-out',
               'pulse-fast': 'pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
             },
             keyframes: {
@@ -37,11 +39,11 @@
               slideInRight: {
                 '0%': { transform: 'translateX(100%)' },
                 '100%': { transform: 'translateX(0)' },
-              }
-            }
-          }
-        }
-      }
+              },
+            },
+          },
+        },
+      };
     </script>
     <style>
       body {
@@ -49,22 +51,23 @@
         color: #e2e8f0;
         font-family: 'Inter', sans-serif;
       }
-      /* Custom scrollbar */
       ::-webkit-scrollbar {
         width: 6px;
       }
       ::-webkit-scrollbar-track {
-        background: #0f172a; 
+        background: #0f172a;
       }
       ::-webkit-scrollbar-thumb {
-        background: #1e293b; 
+        background: #1e293b;
         border-radius: 3px;
       }
       ::-webkit-scrollbar-thumb:hover {
-        background: #22d3ee; 
+        background: #22d3ee;
       }
     </style>
-  <script type="importmap">
-{
-  "imports": {
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
