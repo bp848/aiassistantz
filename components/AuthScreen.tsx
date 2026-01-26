@@ -17,71 +17,79 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthComplete }) => {
 
   const googleOAuthScopes = 'openid email profile https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/calendar';
 
-  // Handle Supabase OAuth callback
+  // Handle Supabase OAuth callback using onAuthStateChange to capture provider_token
   useEffect(() => {
-    const handleCallback = async () => {
-      if (!supabase) return;
+    if (!supabase) return;
 
-      const urlParams = new URLSearchParams(window.location.search);
-      const error = urlParams.get('error');
-      const errorDescription = urlParams.get('error_description');
+    // Check for OAuth error in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const error = urlParams.get('error');
+    const errorDescription = urlParams.get('error_description');
 
-      if (error) {
-        setAuthError(`OAuth error: ${errorDescription || error}`);
+    if (error) {
+      setAuthError(`OAuth error: ${errorDescription || error}`);
+      window.history.replaceState({}, document.title, window.location.pathname);
+      return;
+    }
+
+    // Use onAuthStateChange to properly capture the session with provider_token
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state change:', event, 'provider_token:', session?.provider_token ? 'present' : 'missing');
+      
+      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
+        const profile = {
+          name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'User',
+          email: session.user.email || '',
+          picture: session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture
+        };
+
+        console.log('Auth complete, provider_token:', session.provider_token ? 'present' : 'missing');
+        onAuthComplete(profile.name, profile.email, 'google', profile.picture);
+
+        // Save to Supabase
+        try {
+          const { saveUserProfile } = await import('../services/userService');
+          await saveUserProfile(
+            {
+              name: profile.name,
+              email: profile.email,
+              authProvider: 'google',
+              avatarUrl: profile.picture,
+              isConnectedGoogle: !!session.provider_token
+            },
+            {
+              name: '秘書',
+              tone: 'professional',
+              avatarUrl: profile.picture
+            }
+          );
+          console.log('Profile saved to Supabase');
+        } catch (e) {
+          console.error('Failed to save profile:', e);
+        }
+
         window.history.replaceState({}, document.title, window.location.pathname);
-        return;
       }
+    });
 
-      try {
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        
-        if (sessionError) {
-          console.error('Session error:', sessionError);
-          return;
-        }
-
-        if (session?.user) {
-          console.log('Found session, user:', session.user.email);
-          const profile = {
-            name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'User',
-            email: session.user.email || '',
-            picture: session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture
-          };
-
-          console.log('Calling onAuthComplete with profile:', profile);
-          onAuthComplete(profile.name, profile.email, 'google', profile.picture);
-
-          // Save to Supabase
-          try {
-            const { saveUserProfile } = await import('../services/userService');
-            await saveUserProfile(
-              {
-                name: profile.name,
-                email: profile.email,
-                authProvider: 'google',
-                avatarUrl: profile.picture,
-                isConnectedGoogle: true
-              },
-              {
-                name: '秘書',
-                tone: 'professional',
-                avatarUrl: profile.picture
-              }
-            );
-            console.log('Profile saved to Supabase');
-          } catch (e) {
-            console.error('Failed to save profile:', e);
-          }
-
-          window.history.replaceState({}, document.title, window.location.pathname);
-        }
-      } catch (e: any) {
-        console.error('OAuth callback error:', e);
-        setAuthError(e?.message || 'OAuth callback failed');
+    // Also check for existing session on mount
+    const checkExistingSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const profile = {
+          name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'User',
+          email: session.user.email || '',
+          picture: session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture
+        };
+        console.log('Existing session found, provider_token:', session.provider_token ? 'present' : 'missing');
+        onAuthComplete(profile.name, profile.email, 'google', profile.picture);
       }
     };
+    checkExistingSession();
 
-    handleCallback();
+    return () => {
+      subscription.unsubscribe();
+    };
   }, [onAuthComplete]);
 
   // Handle LINE implicit flow callback (#access_token …)
