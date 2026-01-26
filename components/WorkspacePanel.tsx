@@ -61,6 +61,11 @@ const WorkspacePanel: React.FC<WorkspacePanelProps> = ({ mode, lastAiMessage, on
       <div className="flex-1 overflow-y-auto bg-[#080d1a] custom-scrollbar">
         {(mode === AgentMode.SECRETARY || mode === AgentMode.SCHEDULE) && dashboard && (
           <div className="p-6 space-y-10">
+            {dashboard.needsGoogleAuth && (
+              <div className="p-5 bg-yellow-500/10 border border-yellow-500/20 rounded-3xl text-xs text-yellow-200">
+                Google is not connected (or token is missing). Re-authenticate with Google to enable Gmail/Calendar.
+              </div>
+            )}
             {/* Timeline Calendar */}
             <section className="animate-fadeIn">
               <div className="flex items-center justify-between mb-6">

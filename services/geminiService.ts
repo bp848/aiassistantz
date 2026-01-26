@@ -1,11 +1,24 @@
 import { GoogleGenAI, Type, FunctionDeclaration, GenerateContentResponse } from '@google/genai';
 import { AgentMode, Message, Sender, StoredDocument } from '../types';
 import { listCalendarEvents, createCalendarEvent, searchEmails, getEmailDetail, sendEmail } from './googleApi';
+import { supabase } from './supabaseClient';
 
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_GOOGLE_GMAIL_API_KEY || '';
 export const IS_DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
 
-const ai = new GoogleGenAI({ apiKey: API_KEY });
+const getGeminiApiKey = (): string => {
+  const apiKey = (import.meta.env.VITE_GEMINI_API_KEY as string | undefined) || '';
+  return apiKey.trim();
+};
+
+let ai: GoogleGenAI | undefined;
+const getAi = () => {
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) {
+    throw new Error('Missing VITE_GEMINI_API_KEY. Add a valid Gemini API key to your environment.');
+  }
+  if (!ai) ai = new GoogleGenAI({ apiKey });
+  return ai;
+};
 
 export const COMPANY_PROFILE = `
 事業内容: 商業印刷、出版印刷、デジタルソリューション
@@ -19,7 +32,9 @@ export const initializeUserContext = (userName: string) => {
 };
 
 export const generateSecretaryImage = async (prompt: string): Promise<string> => {
+  if (IS_DEMO_MODE && !getGeminiApiKey()) return '';
   try {
+    const ai = getAi();
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: {
@@ -115,14 +130,24 @@ async function handleToolCall(fnName: string, args: any) {
 
 export const getDashboardData = async () => {
   try {
+    if (IS_DEMO_MODE) return { events: [], emails: [], needsGoogleAuth: false };
+
+    // If the user hasn't connected Google (or tokens aren't available), don't spam API calls.
+    if (supabase) {
+      const {
+        data: { session }
+      } = await supabase.auth.getSession();
+      if (!session?.provider_token) return { events: [], emails: [], needsGoogleAuth: true };
+    }
+
     const [events, emails] = await Promise.all([
       listCalendarEvents(new Date().toISOString().split('T')[0]).catch(() => []),
       searchEmails({ query: '', maxResults: 5 }).catch(() => [])
     ]);
-    return { events, emails };
+    return { events, emails, needsGoogleAuth: false };
   } catch (e) {
     console.warn('Dashboard fetch failed', e);
-    return { events: [], emails: [] };
+    return { events: [], emails: [], needsGoogleAuth: false };
   }
 };
 
@@ -137,6 +162,16 @@ export const streamGeminiResponse = async (
   knowledgeBase: StoredDocument[] = []
 ) => {
   try {
+    const apiKey = getGeminiApiKey();
+    if (!apiKey) {
+      if (IS_DEMO_MODE) {
+        onChunk('Demo mode: LLM is not configured. Set VITE_GEMINI_API_KEY to enable responses.');
+        onFinish();
+        return;
+      }
+      throw new Error('Missing VITE_GEMINI_API_KEY. Add a valid Gemini API key to your environment.');
+    }
+
     let modelName = 'gemini-3-flash-preview';
     let tools: any[] = [{ functionDeclarations: [calendarTool, gmailTool] }];
     let thinkingConfig = undefined;
@@ -156,6 +191,7 @@ export const streamGeminiResponse = async (
       tools.push({ googleMaps: {} });
     }
 
+    const ai = getAi();
     const chat = ai.chats.create({
       model: modelName,
       config: {
@@ -194,6 +230,15 @@ ${kbContext}
     await processStream(stream);
     onFinish();
   } catch (e: any) {
-    onError(e);
+    const message = String(e?.message || e || '');
+    if (message.includes('API key expired') || message.includes('API_KEY_INVALID')) {
+      onError(
+        new Error(
+          'Gemini API key is invalid/expired. Replace VITE_GEMINI_API_KEY with an active key (Google AI Studio), then restart the dev server.'
+        )
+      );
+      return;
+    }
+    onError(e instanceof Error ? e : new Error(message || 'Gemini request failed'));
   }
 };

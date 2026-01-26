@@ -1,5 +1,126 @@
 import { supabase } from './supabaseClient';
 
+type GoogleScope = string;
+
+const TOKENINFO_ENDPOINT = 'https://www.googleapis.com/oauth2/v3/tokeninfo';
+
+const GOOGLE_SCOPES = {
+  gmailRead: [
+    'https://www.googleapis.com/auth/gmail.readonly',
+    'https://www.googleapis.com/auth/gmail.modify',
+    'https://mail.google.com/'
+  ],
+  gmailSend: [
+    'https://www.googleapis.com/auth/gmail.send',
+    'https://www.googleapis.com/auth/gmail.compose',
+    'https://www.googleapis.com/auth/gmail.modify',
+    'https://mail.google.com/'
+  ],
+  calendarRead: [
+    'https://www.googleapis.com/auth/calendar.readonly',
+    'https://www.googleapis.com/auth/calendar.events.readonly',
+    'https://www.googleapis.com/auth/calendar'
+  ],
+  calendarWrite: [
+    'https://www.googleapis.com/auth/calendar',
+    'https://www.googleapis.com/auth/calendar.events'
+  ]
+} as const;
+
+let tokenInfoCache:
+  | {
+      token: string;
+      scopes: Set<GoogleScope>;
+      fetchedAtMs: number;
+    }
+  | undefined;
+
+let lastAuthLog:
+  | {
+      message: string;
+      atMs: number;
+    }
+  | undefined;
+
+const logAuthIssue = (message: string) => {
+  const now = Date.now();
+  if (lastAuthLog && lastAuthLog.message === message && now - lastAuthLog.atMs < 30000) return;
+  lastAuthLog = { message, atMs: now };
+  console.warn(message);
+};
+
+const getTokenInfo = async (token: string): Promise<{ scopes: Set<GoogleScope> }> => {
+  if (tokenInfoCache?.token === token) return { scopes: tokenInfoCache.scopes };
+
+  const res = await fetch(`${TOKENINFO_ENDPOINT}?access_token=${encodeURIComponent(token)}`);
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Google token inspection failed: ${err}`);
+  }
+
+  const data = await res.json();
+  const scopes = new Set<GoogleScope>(String(data.scope || '').split(' ').filter(Boolean));
+  tokenInfoCache = { token, scopes, fetchedAtMs: Date.now() };
+  return { scopes };
+};
+
+const requireToken = async (requiredScopes: readonly GoogleScope[] = []): Promise<string> => {
+  if (!supabase) {
+    throw new Error('Supabase is not configured. Cannot access Google APIs.');
+  }
+
+  try {
+    // Ensure we have the freshest Supabase session (and provider_token when available).
+    await supabase.auth.refreshSession().catch(() => undefined);
+
+    const {
+      data: { session },
+      error
+    } = await supabase.auth.getSession();
+
+    if (error) {
+      throw new Error(`Failed to get session: ${error.message}`);
+    }
+
+    if (!session) {
+      throw new Error('No active session. Please log in with Google.');
+    }
+
+    if (!session.provider_token) {
+      throw new Error('No Google access token found. Please re-authenticate with Google.');
+    }
+
+    const token = session.provider_token;
+
+    if (requiredScopes.length > 0) {
+      const { scopes } = await getTokenInfo(token);
+      const hasAnyRequired = requiredScopes.some(s => scopes.has(s));
+      if (!hasAnyRequired) {
+        throw new Error(
+          `Google connection is missing required permissions. Please reconnect Google and approve access.\n\nMissing one of:\n- ${requiredScopes.join(
+            '\n- '
+          )}`
+        );
+      }
+    }
+
+    return token;
+  } catch (e: any) {
+    const msg = String(e?.message || e || 'Authentication required');
+    // Avoid spamming the console when the user simply hasn't connected Google yet.
+    if (
+      msg.includes('No Google access token found') ||
+      msg.includes('No active session') ||
+      msg.includes('Google connection is missing required permissions')
+    ) {
+      logAuthIssue(`Google auth needed: ${msg}`);
+    } else {
+      console.error('Token retrieval error:', e);
+    }
+    throw new Error(`Authentication required: ${e.message}`);
+  }
+};
+
 const base64UrlEncode = (input: string) => {
   return btoa(input)
     .replace(/\+/g, '-')
@@ -11,33 +132,6 @@ const base64UrlDecode = (input: string) => {
   const pad = input.length % 4 === 0 ? '' : '='.repeat(4 - (input.length % 4));
   const normalized = input.replace(/-/g, '+').replace(/_/g, '/') + pad;
   return atob(normalized);
-};
-
-const requireToken = async (): Promise<string> => {
-  if (!supabase) {
-    throw new Error('Supabase is not configured. Cannot access Google APIs.');
-  }
-
-  try {
-    const { data: { session }, error } = await supabase.auth.getSession();
-    
-    if (error) {
-      throw new Error(`Failed to get session: ${error.message}`);
-    }
-    
-    if (!session) {
-      throw new Error('No active session. Please log in with Google.');
-    }
-    
-    if (!session.provider_token) {
-      throw new Error('No Google access token found. Please re-authenticate with Google.');
-    }
-    
-    return session.provider_token;
-  } catch (e: any) {
-    console.error('Token retrieval error:', e);
-    throw new Error(`Authentication required: ${e.message}`);
-  }
 };
 
 export interface CalendarEventInput {
@@ -60,7 +154,7 @@ export interface CalendarEvent {
 }
 
 export const listCalendarEvents = async (date?: string): Promise<CalendarEvent[]> => {
-  const token = await requireToken();
+  const token = await requireToken(GOOGLE_SCOPES.calendarRead);
   const params = new URLSearchParams({
     maxResults: '20',
     singleEvents: 'true',
@@ -96,7 +190,7 @@ export const listCalendarEvents = async (date?: string): Promise<CalendarEvent[]
 };
 
 export const createCalendarEvent = async (input: CalendarEventInput) => {
-  const token = await requireToken();
+  const token = await requireToken(GOOGLE_SCOPES.calendarWrite);
   const startDateTime = new Date(`${input.date}T${input.time || '09:00'}:00`);
   const durationMinutes = Number(input.duration || '60');
   const endDateTime = new Date(startDateTime.getTime() + durationMinutes * 60000);
@@ -163,7 +257,7 @@ const decodeBody = (payload: any): string => {
 };
 
 export const searchEmails = async (args: any): Promise<GmailMessageSummary[]> => {
-  const token = await requireToken();
+  const token = await requireToken(GOOGLE_SCOPES.gmailRead);
   const query = buildGmailQuery(args);
   const maxResults = args?.maxResults || 10;
   const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=${maxResults}`, {
@@ -186,7 +280,7 @@ export const searchEmails = async (args: any): Promise<GmailMessageSummary[]> =>
 };
 
 export const getEmailDetail = async (args: { messageId: string; token?: string }): Promise<GmailMessageSummary> => {
-  const token = args.token || (await requireToken());
+  const token = args.token || (await requireToken(GOOGLE_SCOPES.gmailRead));
   const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${args.messageId}?format=full`, {
     headers: { Authorization: `Bearer ${token}` }
   });
@@ -213,7 +307,7 @@ export const getEmailDetail = async (args: { messageId: string; token?: string }
 };
 
 export const sendEmail = async (args: { to: string; subject: string; body: string }) => {
-  const token = await requireToken();
+  const token = await requireToken(GOOGLE_SCOPES.gmailSend);
   
   let from = 'me';
   try {

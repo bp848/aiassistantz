@@ -55,8 +55,19 @@ const App: React.FC = () => {
       
       if (session?.user) {
         console.log('Found existing session in App:', session.user.email);
-        setAuth({ isLoggedIn: true, user: { name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'User', email: session.user.email || '' } });
-        setSetupStep('main');
+        const provider = (session.user.app_metadata?.provider as AuthProvider | undefined) || 'email';
+        const currentUser: UserProfile = {
+          name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'User',
+          email: session.user.email || '',
+          authProvider: provider,
+          avatarUrl: session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture,
+          isConnectedGoogle: !!session.provider_token
+        };
+        setAuth({ isLoggedIn: true, user: { name: currentUser.name, email: currentUser.email } });
+        setUserProfile(currentUser);
+        initializeUserContext(currentUser.name);
+        // If Google tokens aren't available, route to integration so the user can reconnect.
+        setSetupStep(session.provider_token ? 'main' : 'integration');
         setIsProfileLoading(false);
         return;
       }
@@ -114,8 +125,8 @@ const App: React.FC = () => {
     setAuth({ isLoggedIn: true, user: newUser });
     setUserProfile(newUser);
     initializeUserContext(name);
-    console.log('Setting setupStep to main');
-    setSetupStep('main'); // Skip integration step for now
+    console.log('Setting setupStep after auth');
+    setSetupStep(provider === 'google' ? 'main' : 'integration');
   };
 
   const handleIntegrationComplete = (connected?: { email?: string; name?: string }) => {
