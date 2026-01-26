@@ -185,14 +185,14 @@ export const streamGeminiResponse = async (
       modelName = 'gemini-3-pro-preview';
       thinkingConfig = { thinkingBudget: 32768 };
     } else if (mode === AgentMode.RESEARCHER) {
-      tools.push({ googleSearch: {} });
+      tools = [{ googleSearch: {} }];
     } else if (mode === AgentMode.CONCIERGE) {
       modelName = 'gemini-2.5-flash';
-      tools.push({ googleMaps: {} });
+      tools = [{ googleMaps: {} }];
     }
 
     const ai = getAi();
-    const chat = ai.chats.create({
+    let chat = ai.chats.create({
       model: modelName,
       config: {
         systemInstruction: `${IS_DEMO_MODE ? '【デモモード】実データへの接続は許可されていません。' : ''}あなたは${currentUserName}社長の専属AI秘書です。
@@ -208,14 +208,36 @@ ${kbContext}
     const parts: any[] = [{ text: currentMessage }];
     if (attachment) parts.push({ inlineData: { mimeType: attachment.mimeType, data: attachment.data } });
 
-    const stream = await chat.sendMessageStream({ message: { parts } });
+    const toolCallingUnsupported = (msg: string) => msg.includes('Tool use with function calling is unsupported');
+
+    let allowFunctionCalling = tools.some(t => t?.functionDeclarations);
+    let stream: any;
+    try {
+      stream = await chat.sendMessageStream({ message: { parts } });
+    } catch (e: any) {
+      const msg = String(e?.message || e || '');
+      if (!toolCallingUnsupported(msg)) throw e;
+
+      // Fallback: retry without tools/function calling.
+      allowFunctionCalling = false;
+      onChunk('Note: Tool/function calling is unsupported for this model/request. Retrying without tools.');
+      chat = ai.chats.create({
+        model: modelName,
+        config: {
+          systemInstruction: `Tool/function calling is disabled for this request.`,
+          tools: [],
+          thinkingConfig
+        }
+      });
+      stream = await chat.sendMessageStream({ message: { parts } });
+    }
 
     const processStream = async (s: any) => {
       for await (const chunk of s) {
         const c = chunk as GenerateContentResponse;
         if (c.text) onChunk(c.text, c.candidates?.[0]?.groundingMetadata);
-        const fcs = c.functionCalls;
-        if (fcs && fcs.length > 0) {
+        const fcs = allowFunctionCalling ? c.functionCalls : undefined;
+        if (allowFunctionCalling && fcs && fcs.length > 0) {
           const responses: any[] = [];
           for (const fc of fcs) {
             const res = await handleToolCall(fc.name, fc.args);
