@@ -1,32 +1,41 @@
-import { Type, FunctionDeclaration, GenerateContentResponse } from '@google/genai';
+import { GoogleGenAI, Type, FunctionDeclaration, GenerateContentResponse } from '@google/genai';
 import { AgentMode, Message, Sender, StoredDocument } from '../types';
 import { listCalendarEvents, createCalendarEvent, searchEmails, getEmailDetail, sendEmail } from './googleApi';
 import { supabase } from './supabaseClient';
 
 export const IS_DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
 
+// If you want to override where the app sends Gemini requests (e.g. staging),
+// set VITE_GEMINI_PROXY_URL to an absolute URL.
+
 const getGeminiProxyUrl = () => {
-  const baseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-  if (!baseUrl) throw new Error('Missing VITE_SUPABASE_URL for Gemini proxy call.');
-  return `${baseUrl}/functions/v1/gemini-proxy`;
+  const explicit = (import.meta.env.VITE_GEMINI_PROXY_URL as string | undefined)?.trim();
+  if (explicit) return explicit;
+
+  // In production (Vercel), use same-origin serverless function.
+  if (import.meta.env.PROD) return '/api/gemini-proxy';
+
+  // In local dev, fall back to Supabase Edge Function if configured.
+  const baseUrl = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim();
+  if (baseUrl) return `${baseUrl}/functions/v1/gemini-proxy`;
+
+  throw new Error('Missing VITE_GEMINI_PROXY_URL (or VITE_SUPABASE_URL) for Gemini proxy call.');
 };
 
-const callGeminiProxy = async (payload: any) => {
-  const url = getGeminiProxyUrl();
-  let accessToken: string | undefined;
-  if (supabase) {
-    const {
-      data: { session }
-    } = await supabase.auth.getSession();
-    accessToken = session?.access_token || undefined;
+const callGemini = async (payload: any) => {
+  // In local dev, if a client API key is configured, call Gemini directly (no proxy required).
+  // This keeps local development simple; production should use the serverless proxy.
+  const devApiKey = (import.meta.env.VITE_GEMINI_API_KEY as string | undefined)?.trim();
+  if (import.meta.env.DEV && devApiKey) {
+    const ai = new GoogleGenAI({ apiKey: devApiKey });
+    return await ai.models.generateContent(payload);
   }
+
+  const url = getGeminiProxyUrl();
 
   const res = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: accessToken ? `Bearer ${accessToken}` : ''
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
   });
 
@@ -56,7 +65,7 @@ export const initializeUserContext = (userName: string) => {
 export const generateSecretaryImage = async (prompt: string): Promise<string> => {
   if (IS_DEMO_MODE) return '';
   try {
-    const response = await callGeminiProxy({
+    const response = await callGemini({
       model: 'gemini-2.5-flash-image',
       contents: [{ role: 'user', parts: [{ text: `Professional portrait of an executive secretary. Appearance: ${prompt}` }] }],
       config: { imageConfig: { aspectRatio: '1:1' } }
@@ -232,7 +241,7 @@ ${kbContext}
     let response: GenerateContentResponse | null = null;
     let guard = 0;
     while (guard < 3) {
-      response = await callGeminiProxy({
+      response = await callGemini({
         model: modelName,
         contents,
         config: {

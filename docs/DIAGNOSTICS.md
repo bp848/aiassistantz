@@ -3,7 +3,7 @@
 ## 1) Gemini API 呼び出しテスト（ローカル/CI）
 
 前提:
-- `VITE_GEMINI_API_KEY` が設定されていること（`.env.local` もしくは実行環境の env）
+- `VITE_GEMINI_API_KEY`（ローカル開発用）または `GEMINI_API_KEY`（サーバー/CI用）が設定されていること
 
 実行:
 - `node scripts/verify-gemini.mjs`
@@ -25,4 +25,3 @@ Gmail API が未有効の場合やスコープ不足の場合、Gmail API は 40
 期待結果:
 - `OK` が表示される（`users/me/profile` が 200）
 - 403 の場合、メッセージに `insufficientPermissions` / `accessNotConfigured` などのヒントが出る
-

@@ -1,6 +1,6 @@
 # クラウド社長室Z AI秘書 - 内部構造説明書（フロントエンド）
 
-このリポジトリは **Vercel 上で動くクライアント（React + Vite）** です。現状、Gemini API は **ブラウザから直接** 呼び出します（`@google/genai` + `VITE_GEMINI_API_KEY`）。
+このリポジトリは **Vercel 上で動くクライアント（React + Vite）** です。Gemini API は **本番では Vercel Serverless Function（`api/gemini-proxy.cjs`）経由**で呼び出し、API キーをクライアントに露出させない構成を推奨しています。
 
 ## 1. 全体構成（実装ベース）
 
@@ -10,7 +10,7 @@ Browser (Vercel)
   ├─ Supabase Auth (services/supabaseClient.ts)
   │    └─ Google OAuth セッション (provider_token)
   ├─ Gemini (services/geminiService.ts)
-  │    └─ Google Generative Language API (streamGenerateContent)
+  │    └─ Vercel Function /api/gemini-proxy → Google Generative Language API
   └─ Google APIs (services/googleApi.ts)
        ├─ Gmail API (users/me/messages, send 等)
        └─ Calendar API (calendars/primary/events 等)
@@ -21,7 +21,7 @@ Supabase (backend)
 ```
 
 重要:
-- **Gemini の API キーは現状クライアントに存在します**（Vite の `import.meta.env.VITE_GEMINI_API_KEY`）。本番運用ではサーバー（例: Supabase Edge Function / Vercel Functions）経由にして秘匿するのが推奨です。
+- 本番運用では **`GEMINI_API_KEY` をサーバー環境変数として設定**し、`/api/gemini-proxy` 経由で呼び出します（API キーをクライアントに置かない）。
 - Gmail/Calendar は **Supabase の OAuth セッションに含まれる `provider_token`** を Bearer として呼び出します。
 
 ## 2. 主要ファイル
@@ -73,4 +73,3 @@ Vite で参照されるため、クライアントで使うものは `VITE_` 接
 - `.env.*` や `*.apikey*.txt` を **リポジトリにコミットしない**（このリポジトリでは `.gitignore` で除外）。
 - 既に公開/共有された可能性があるキーは **必ずローテーション**してください。
 - Gemini を本番で使うなら、クライアント直呼びではなく **サーバー/Edge 関数経由**で API キーを秘匿する構成を推奨します。
-
