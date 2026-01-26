@@ -45,7 +45,6 @@ export const saveUserProfile = async (user: UserProfile, secretary: SecretaryPro
 };
 
 export const getUserProfile = async (): Promise<{user: UserProfile, secretary: SecretaryProfile} | null> => {
-  // SECURITY: Only use Supabase with RLS - never localStorage
   if (!supabase) {
     console.warn('Supabase not available');
     return null;
@@ -76,6 +75,23 @@ export const getUserProfile = async (): Promise<{user: UserProfile, secretary: S
     } else if (error) {
       console.info('No profile found for user (expected for new users):', error.message);
     }
+
+    // Fallback: return session data if no database record
+    console.log('Returning fallback session data for:', authUser.email);
+    return {
+      user: {
+        name: authUser.user_metadata?.full_name || authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'User',
+        email: authUser.email || '',
+        avatarUrl: authUser.user_metadata?.avatar_url || authUser.user_metadata?.picture,
+        isConnectedGoogle: true,
+        authProvider: 'google'
+      },
+      secretary: {
+        name: '秘書',
+        tone: 'professional',
+        avatarUrl: authUser.user_metadata?.avatar_url || authUser.user_metadata?.picture
+      }
+    };
   } catch (e) {
     console.error('Supabase fetch error:', e);
   }

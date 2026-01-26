@@ -104,14 +104,14 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onSelectMode, onOpenFileWareh
               </div>
               <div className="flex flex-col gap-1">
                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] text-gray-200 truncate">{currentUser?.email || 'user@example.com'}</span>
+                    <span className="text-[11px] text-gray-200 truncate">{currentUser?.email || '未設定'}</span>
                     <div className="flex gap-1">
                        <Mail size={10} className="text-red-500" />
                        <Calendar size={10} className="text-blue-500" />
                     </div>
                  </div>
                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] text-gray-400 truncate opacity-60">{currentUser?.email || 'user@example.com'}</span>
+                    <span className="text-[11px] text-gray-400 truncate opacity-60">{currentUser?.email || '未設定'}</span>
                     <Check size={10} className="text-green-500" />
                  </div>
               </div>
