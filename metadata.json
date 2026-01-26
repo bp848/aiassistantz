@@ -1,0 +1,8 @@
+{
+  "name": "Copy of クラウド社長室Z AIエージェント秘書",
+  "description": "Gemini搭載の高度なエグゼクティブ・アシスタント。予約手配、文書作成、音声対話など、社長のための多彩なモードを搭載。",
+  "requestFramePermissions": [
+    "geolocation",
+    "microphone"
+  ]
+}
