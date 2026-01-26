@@ -158,6 +158,7 @@ const requireToken = async (requiredScopes: readonly GoogleScope[] = []): Promis
 
     if (requiredScopes.length > 0) {
       const { scopes } = await getTokenInfo(token);
+      console.log('[googleApi] Token scopes:', Array.from(scopes).join(' '));
       const hasAnyRequired = requiredScopes.some(s => scopes.has(s));
       if (!hasAnyRequired) {
         throw new Error(
@@ -321,12 +322,22 @@ const decodeBody = (payload: any): string => {
 };
 
 export const searchEmails = async (args: any): Promise<GmailMessageSummary[]> => {
-  const token = await requireToken(GOOGLE_SCOPES.gmailRead);
+  let token = await requireToken(GOOGLE_SCOPES.gmailRead);
   const query = buildGmailQuery(args);
   const maxResults = args?.maxResults || 10;
-  const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=${maxResults}`, {
+  let res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=${maxResults}`, {
     headers: { Authorization: `Bearer ${token}` }
   });
+  if (!res.ok && (res.status === 401 || res.status === 403)) {
+    console.warn('[googleApi] Gmail search failed, attempting token refresh', res.status);
+    const refreshed = await refreshGoogleToken();
+    if (refreshed) {
+      token = refreshed;
+      res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=${maxResults}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+    }
+  }
   if (!res.ok) {
     const err = await res.text();
     throw new Error(`Gmail search failed: ${err}`);
@@ -344,10 +355,20 @@ export const searchEmails = async (args: any): Promise<GmailMessageSummary[]> =>
 };
 
 export const getEmailDetail = async (args: { messageId: string; token?: string }): Promise<GmailMessageSummary> => {
-  const token = args.token || (await requireToken(GOOGLE_SCOPES.gmailRead));
-  const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${args.messageId}?format=full`, {
+  let token = args.token || (await requireToken(GOOGLE_SCOPES.gmailRead));
+  let res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${args.messageId}?format=full`, {
     headers: { Authorization: `Bearer ${token}` }
   });
+  if (!res.ok && (res.status === 401 || res.status === 403)) {
+    console.warn('[googleApi] Gmail detail failed, attempting token refresh', res.status);
+    const refreshed = await refreshGoogleToken();
+    if (refreshed) {
+      token = refreshed;
+      res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${args.messageId}?format=full`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+    }
+  }
   if (!res.ok) {
     const err = await res.text();
     throw new Error(`Gmail get_detail failed: ${err}`);
