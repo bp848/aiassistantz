@@ -66,7 +66,7 @@ Google Cloud Consoleで以下のAPIを有効化:
 ```env
 VITE_SUPABASE_URL=https://frbdpmqxgtgnjeccpbub.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-VITE_GEMINI_API_KEY=AIzaSyBhKft1uPeMy05dOUV0juyvJtVVbV-8BxE
+VITE_GEMINI_API_KEY=<your-gemini-api-key>
 ```
 
 ## トラブルシューティング

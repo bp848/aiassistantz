@@ -21,7 +21,7 @@ VITE_SUPABASE_URL=https://frbdpmqxgtgnjeccpbub.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZyYmRwbXF4Z3RnbmplY2NwYnViIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ3MTU3MTksImV4cCI6MjA4MDI5MTcxOX0.jgNGsuA397o8AGvv-BL3cDXHKsLKCmGO_KrEcrdzv1k
 
 # Gemini AI
-VITE_GEMINI_API_KEY=AIzaSyBhKft1uPeMy05dOUV0juyvJtVVbV-8BxE
+VITE_GEMINI_API_KEY=<your-gemini-api-key-here>
 
 # Google APIs (Optional - for reference)
 VITE_GOOGLE_CLIENT_ID=1093393642444-nl87vspgqeb0jbdb6h6tmeddnsnsumsb.apps.googleusercontent.com
