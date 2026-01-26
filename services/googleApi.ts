@@ -64,6 +64,52 @@ const getTokenInfo = async (token: string): Promise<{ scopes: Set<GoogleScope> }
   return { scopes };
 };
 
+// Get Google token from localStorage (saved during OAuth callback)
+const getGoogleTokenFromLocalStorage = (): string | null => {
+  return localStorage.getItem('google_access_token');
+};
+
+// Refresh Google token using refresh_token stored in localStorage
+const refreshGoogleToken = async (): Promise<string | null> => {
+  const refreshToken = localStorage.getItem('google_refresh_token');
+  if (!refreshToken) return null;
+
+  const clientId = (import.meta.env.VITE_GOOGLE_CLIENT_ID as string) || '';
+  const clientSecret = (import.meta.env.VITE_GOOGLE_CLIENT_SECRET as string) || '';
+
+  if (!clientId || !clientSecret) {
+    console.warn('Google client credentials not configured');
+    return null;
+  }
+
+  try {
+    const response = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        refresh_token: refreshToken,
+        grant_type: 'refresh_token',
+      }),
+    });
+
+    if (!response.ok) {
+      console.warn('Failed to refresh Google token');
+      return null;
+    }
+
+    const data = await response.json();
+    if (data.access_token) {
+      localStorage.setItem('google_access_token', data.access_token);
+      return data.access_token;
+    }
+  } catch (e) {
+    console.warn('Error refreshing Google token:', e);
+  }
+  return null;
+};
+
 const requireToken = async (requiredScopes: readonly GoogleScope[] = []): Promise<string> => {
   if (!supabase) {
     throw new Error('Supabase is not configured. Cannot access Google APIs.');
@@ -86,11 +132,21 @@ const requireToken = async (requiredScopes: readonly GoogleScope[] = []): Promis
       throw new Error('No active session. Please log in with Google.');
     }
 
-    if (!session.provider_token) {
-      throw new Error('No Google access token found. Please re-authenticate with Google.');
+    let token = session.provider_token;
+
+    // If no provider_token in session, try localStorage
+    if (!token) {
+      token = getGoogleTokenFromLocalStorage();
     }
 
-    const token = session.provider_token;
+    // If still no token, try to refresh using stored refresh_token
+    if (!token) {
+      token = await refreshGoogleToken();
+    }
+
+    if (!token) {
+      throw new Error('No Google access token found. Please re-authenticate with Google.');
+    }
 
     if (requiredScopes.length > 0) {
       const { scopes } = await getTokenInfo(token);

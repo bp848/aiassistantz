@@ -34,9 +34,19 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthComplete }) => {
 
     // Use onAuthStateChange to properly capture the session with provider_token
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state change:', event, 'provider_token:', session?.provider_token ? 'present' : 'missing');
+      console.log('Auth state change:', event, 'provider_token:', session?.provider_token ? 'present' : 'missing', 'provider_refresh_token:', session?.provider_refresh_token ? 'present' : 'missing');
       
       if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
+        // Save provider tokens to localStorage for later use
+        if (session.provider_token) {
+          localStorage.setItem('google_access_token', session.provider_token);
+          console.log('Saved google_access_token to localStorage');
+        }
+        if (session.provider_refresh_token) {
+          localStorage.setItem('google_refresh_token', session.provider_refresh_token);
+          console.log('Saved google_refresh_token to localStorage');
+        }
+
         const profile = {
           name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'User',
           email: session.user.email || '',
