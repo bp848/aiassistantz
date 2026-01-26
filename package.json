@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "verify:gemini": "node scripts/verify-gemini.mjs",
-    "verify:gmail": "node scripts/verify-gmail.mjs"
+    "verify:gmail": "node scripts/verify-gmail.mjs",
+    "verify:vercel-proxy": "node scripts/verify-vercel-gemini-proxy.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.30.0",

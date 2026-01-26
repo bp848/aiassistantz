@@ -8,6 +8,9 @@
 実行:
 - `node scripts/verify-gemini.mjs`
 
+Vercel プロキシ（`/api/gemini-proxy`）をローカルで擬似実行:
+- `GEMINI_API_KEY="..." node scripts/verify-vercel-gemini-proxy.mjs`
+
 期待結果:
 - `OK` が表示される（HTTP 200 相当）
 - 失敗時はエラー内容（無効キー/権限/モデル名など）が表示される
