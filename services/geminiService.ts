@@ -235,8 +235,10 @@ ${kbContext}
     const processStream = async (s: any) => {
       for await (const chunk of s) {
         const c = chunk as GenerateContentResponse;
-        if (c.text) onChunk(c.text, c.candidates?.[0]?.groundingMetadata);
         const fcs = allowFunctionCalling ? c.functionCalls : undefined;
+        
+        // If there are function calls, handle them first before outputting any text.
+        // The Gemini API requires function responses to immediately follow function calls.
         if (allowFunctionCalling && fcs && fcs.length > 0) {
           const responses: any[] = [];
           for (const fc of fcs) {
@@ -245,6 +247,9 @@ ${kbContext}
           }
           const nextStream = await chat.sendMessageStream({ message: { parts: responses } });
           await processStream(nextStream);
+        } else if (c.text) {
+          // Only output text when there are no function calls in this chunk
+          onChunk(c.text, c.candidates?.[0]?.groundingMetadata);
         }
       }
     };
