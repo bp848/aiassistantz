@@ -233,23 +233,36 @@ ${kbContext}
     }
 
     const processStream = async (s: any) => {
+      // Collect all chunks first to handle function calls properly
+      const allChunks: GenerateContentResponse[] = [];
       for await (const chunk of s) {
-        const c = chunk as GenerateContentResponse;
+        allChunks.push(chunk as GenerateContentResponse);
+      }
+
+      // Check if any chunk contains function calls
+      const allFunctionCalls: any[] = [];
+      for (const c of allChunks) {
         const fcs = allowFunctionCalling ? c.functionCalls : undefined;
-        
-        // If there are function calls, handle them first before outputting any text.
-        // The Gemini API requires function responses to immediately follow function calls.
-        if (allowFunctionCalling && fcs && fcs.length > 0) {
-          const responses: any[] = [];
-          for (const fc of fcs) {
-            const res = await handleToolCall(fc.name, fc.args);
-            responses.push({ functionResponse: { id: fc.id, name: fc.name, response: { result: res } } });
+        if (fcs && fcs.length > 0) {
+          allFunctionCalls.push(...fcs);
+        }
+      }
+
+      // If there are function calls, handle them and recurse
+      if (allowFunctionCalling && allFunctionCalls.length > 0) {
+        const responses: any[] = [];
+        for (const fc of allFunctionCalls) {
+          const res = await handleToolCall(fc.name, fc.args);
+          responses.push({ functionResponse: { id: fc.id, name: fc.name, response: { result: res } } });
+        }
+        const nextStream = await chat.sendMessageStream({ message: { parts: responses } });
+        await processStream(nextStream);
+      } else {
+        // No function calls - output all text
+        for (const c of allChunks) {
+          if (c.text) {
+            onChunk(c.text, c.candidates?.[0]?.groundingMetadata);
           }
-          const nextStream = await chat.sendMessageStream({ message: { parts: responses } });
-          await processStream(nextStream);
-        } else if (c.text) {
-          // Only output text when there are no function calls in this chunk
-          onChunk(c.text, c.candidates?.[0]?.groundingMetadata);
         }
       }
     };
