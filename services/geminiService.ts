@@ -34,7 +34,12 @@ const callGeminiProxy = async (payload: any) => {
   if (!res.ok) {
     throw new Error(text || `Gemini proxy failed (${res.status})`);
   }
-  return JSON.parse(text || '{}');
+  try {
+    return JSON.parse(text || '{}');
+  } catch (parseError) {
+    console.error('[geminiService] Failed to parse Gemini response:', text?.slice(0, 200));
+    throw new Error(`Invalid JSON response from Gemini proxy: ${String(parseError)}`);
+  }
 };
 
 export const COMPANY_PROFILE = `
@@ -182,7 +187,7 @@ export const streamGeminiResponse = async (
       return;
     }
 
-    let modelName = 'gemini-3-flash-preview';
+    let modelName = 'gemini-2.0-flash';
     let tools: any[] = [{ functionDeclarations: [calendarTool, gmailTool] }];
     let thinkingConfig = undefined;
 
@@ -192,7 +197,7 @@ export const streamGeminiResponse = async (
         : '';
 
     if (mode === AgentMode.ADVISOR) {
-      modelName = 'gemini-3-pro-preview';
+      modelName = 'gemini-2.5-pro-preview-05-06';
       thinkingConfig = { thinkingBudget: 32768 };
     } else if (mode === AgentMode.RESEARCHER) {
       tools = [{ googleSearch: {} }];
