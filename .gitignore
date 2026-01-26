@@ -26,6 +26,10 @@ dist-ssr
 # Environment variables
 .env
 .env.local
+.env.*
+!.env.example
+*.apikey*.txt
+.apikey*.txt
 .env.*.local
 
 # Vercel
