@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { AgentMode, Message } from '../types';
-import { X, Calendar, Mail, RefreshCw, CheckCircle, Clock, Brain, Search, FileText, ChevronLeft, Reply, ExternalLink } from 'lucide-react';
+import { X, Calendar, Mail, RefreshCw, Clock, Brain, ChevronLeft, Reply, ExternalLink } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { getDashboardData } from '../services/geminiService';
 
@@ -17,11 +17,12 @@ const WorkspacePanel: React.FC<WorkspacePanelProps> = ({ mode, lastAiMessage, on
   const [isSyncing, setIsSyncing] = useState(false);
   const [selectedEmail, setSelectedEmail] = useState<any>(null);
 
-  const refreshData = async () => {
+  const refreshData = () => {
     setIsSyncing(true);
-    const data = await getDashboardData();
-    setDashboard(data);
-    setIsSyncing(false);
+    setTimeout(() => {
+      setDashboard(getDashboardData());
+      setIsSyncing(false);
+    }, 600);
   };
 
   useEffect(() => {
@@ -30,7 +31,7 @@ const WorkspacePanel: React.FC<WorkspacePanelProps> = ({ mode, lastAiMessage, on
 
   const handleReplyClick = (email: any) => {
     if (onActionSelect) {
-      onActionSelect(`メール "${email.subject}" (ID: ${email.id}) への返信案を資料室のトーンで作成してください。`);
+      onActionSelect(`メール "${email.subject}" (ID: ${email.id}) への返信案を作成してください。`);
       setSelectedEmail(null);
     }
   };
@@ -39,7 +40,7 @@ const WorkspacePanel: React.FC<WorkspacePanelProps> = ({ mode, lastAiMessage, on
 
   return (
     <div className="w-full md:w-[45%] h-full shrink-0 border-l border-white/10 bg-[#080d1a] flex flex-col shadow-2xl z-30 animate-slideInRight">
-      {/* Header */}
+      {/* ヘッダー */}
       <div className="flex items-center justify-between px-6 py-5 border-b border-white/5 bg-gray-900/40 backdrop-blur-xl">
         <div className="flex items-center gap-3">
           <div className="relative">
@@ -61,17 +62,12 @@ const WorkspacePanel: React.FC<WorkspacePanelProps> = ({ mode, lastAiMessage, on
       <div className="flex-1 overflow-y-auto bg-[#080d1a] custom-scrollbar">
         {(mode === AgentMode.SECRETARY || mode === AgentMode.SCHEDULE) && dashboard && (
           <div className="p-6 space-y-10">
-            {dashboard.needsGoogleAuth && (
-              <div className="p-5 bg-yellow-500/10 border border-yellow-500/20 rounded-3xl text-xs text-yellow-200">
-                Google is not connected (or token is missing). Re-authenticate with Google to enable Gmail/Calendar.
-              </div>
-            )}
-            {/* Timeline Calendar */}
+            {/* タイムライン・カレンダー */}
             <section className="animate-fadeIn">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-2 text-cyber-cyan">
                   <Calendar size={20} />
-                  <h3 className="font-serif font-bold text-base tracking-widest uppercase">本日のアジェンダ</h3>
+                  <h3 className="font-serif font-bold text-base tracking-widest uppercase">本日の予定</h3>
                 </div>
                 <span className="text-[10px] text-gray-500 font-mono">{new Date().toLocaleDateString('ja-JP', { weekday: 'long' })}</span>
               </div>
@@ -95,11 +91,11 @@ const WorkspacePanel: React.FC<WorkspacePanelProps> = ({ mode, lastAiMessage, on
               </div>
             </section>
 
-            {/* Interactive Gmail Inbox */}
+            {/* メール受信トレイ */}
             <section className="animate-fadeIn" style={{ animationDelay: '0.2s' }}>
               <div className="flex items-center gap-2 text-red-400 mb-6">
                 <Mail size={20} />
-                <h3 className="font-serif font-bold text-base tracking-widest uppercase">セキュア受信トレイ</h3>
+                <h3 className="font-serif font-bold text-base tracking-widest uppercase">受信トレイ</h3>
               </div>
               
               {selectedEmail ? (
@@ -122,10 +118,6 @@ const WorkspacePanel: React.FC<WorkspacePanelProps> = ({ mode, lastAiMessage, on
                           <span className="text-xs text-cyber-cyan-light font-mono">{selectedEmail.from}</span>
                         </div>
                         <span className="text-[10px] text-gray-500 font-mono">{selectedEmail.date}</span>
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-gray-600 block uppercase font-bold mb-1">件名</span>
-                        <h4 className="text-base font-bold text-white">{selectedEmail.subject}</h4>
                       </div>
                       <div className="pt-4 border-t border-white/5">
                         <div className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap font-sans opacity-90">
@@ -151,10 +143,6 @@ const WorkspacePanel: React.FC<WorkspacePanelProps> = ({ mode, lastAiMessage, on
                       </div>
                       <div className="text-sm font-bold text-gray-200 group-hover:text-cyber-cyan transition-colors truncate mb-2">{mail.subject}</div>
                       <p className="text-[11px] text-gray-500 line-clamp-1 group-hover:text-gray-400 transition-colors">{mail.summary}</p>
-                      
-                      <div className="absolute right-3 bottom-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                         <ExternalLink size={12} className="text-cyber-cyan" />
-                      </div>
                     </div>
                   ))}
                 </div>
@@ -163,7 +151,7 @@ const WorkspacePanel: React.FC<WorkspacePanelProps> = ({ mode, lastAiMessage, on
           </div>
         )}
 
-        {/* Advisor Mode */}
+        {/* アドバイザーモード（思考表示） */}
         {mode === AgentMode.ADVISOR && (
           <div className="p-8 space-y-8">
             <div className="bg-cyber-cyan/5 border border-cyber-cyan/20 p-6 rounded-3xl flex items-center gap-4">
@@ -171,8 +159,8 @@ const WorkspacePanel: React.FC<WorkspacePanelProps> = ({ mode, lastAiMessage, on
                  <Brain size={32} className="text-cyber-cyan animate-pulse" />
                </div>
                <div>
-                 <h4 className="text-sm font-bold text-white">高度推論ロジック</h4>
-                 <p className="text-[11px] text-cyber-slate uppercase tracking-widest font-mono">Gemini 3 Pro アクティブモード</p>
+                 <h4 className="text-sm font-bold text-white">高度推論ロジック稼働中</h4>
+                 <p className="text-[11px] text-cyber-slate uppercase tracking-widest font-mono">Gemini 3 Pro Active Mode</p>
                </div>
             </div>
             <div className="prose prose-invert prose-base max-w-none bg-black/20 p-6 rounded-3xl border border-white/5 shadow-inner leading-loose">
@@ -182,17 +170,16 @@ const WorkspacePanel: React.FC<WorkspacePanelProps> = ({ mode, lastAiMessage, on
         )}
       </div>
 
-      <div className="px-6 py-4 border-t border-white/5 bg-black/60 flex items-center justify-between">
-        <div className="flex items-center gap-4 text-[10px] text-gray-600 font-mono tracking-widest">
-           <div className="flex items-center gap-1.5">
-             <Clock size={12} />
-             <span>同期時刻: {new Date().toLocaleTimeString()}</span>
-           </div>
-        </div>
-        <div className="flex items-center gap-2">
+      {/* フッターステータス */}
+      <div className="px-6 py-4 border-t border-white/5 bg-black/60 flex items-center justify-between font-mono text-[10px] text-gray-600 tracking-widest">
+         <div className="flex items-center gap-1.5">
+           <Clock size={12} />
+           <span>同期時刻: {new Date().toLocaleTimeString()}</span>
+         </div>
+         <div className="flex items-center gap-2">
            <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
-           <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">プロトコルL5 暗号化済み</span>
-        </div>
+           <span>L5 暗号化済み</span>
+         </div>
       </div>
     </div>
   );
