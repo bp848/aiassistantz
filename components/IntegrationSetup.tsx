@@ -1,7 +1,6 @@
 
 import React, { useState } from 'react';
 import { Check, ShieldCheck, ArrowRight, Loader2 } from 'lucide-react';
-import { getUserProfileFromGmail } from '../services/geminiService';
 
 interface IntegrationSetupProps {
   onComplete: () => void;
@@ -15,13 +14,12 @@ const IntegrationSetup: React.FC<IntegrationSetupProps> = ({ onComplete }) => {
 
     try {
       // Gmailからユーザープロフィールを取得
-      const userName = await getUserProfileFromGmail();
-      console.log('取得したユーザー名:', userName);
-
+      // await getUserProfileFromGmail();
+      await new Promise(resolve => setTimeout(resolve, 1000));
       setConnecting('completed');
     } catch (error) {
-      console.error('ユーザープロフィール取得エラー:', error);
-      setConnecting('completed'); // エラーでも完了扱い
+      console.error('連携準備エラー:', error);
+      setConnecting('completed');
     }
   };
 
@@ -64,10 +62,10 @@ const IntegrationSetup: React.FC<IntegrationSetupProps> = ({ onComplete }) => {
               </div>
 
               {connecting === 'completed' ? (
-                <div className="bg-green-500/10 border border-green-500/20 p-4 rounded-xl">
-                  <div className="flex items-center justify-center gap-3 text-green-500 font-medium">
-                    <Check size={20} />
-                    <span>連携完了 - 実際のAPIに接続中</span>
+                <div className="bg-yellow-500/10 border border-yellow-500/20 p-4 rounded-xl">
+                  <div className="flex items-center justify-center gap-3 text-yellow-500 font-medium">
+                    <ShieldCheck size={20} />
+                    <span>連携準備完了（実API接続待ち）</span>
                   </div>
                 </div>
               ) : (
@@ -93,13 +91,13 @@ const IntegrationSetup: React.FC<IntegrationSetupProps> = ({ onComplete }) => {
           </div>
 
           <div className="border-t border-white/10 pt-6 mt-8">
-            <div className="bg-blue-500/5 border border-blue-500/20 p-4 rounded-xl mb-6">
-              <h4 className="font-bold text-blue-400 mb-2">セキュリティについて</h4>
+            <div className="bg-gray-500/5 border border-gray-500/20 p-4 rounded-xl mb-6">
+              <h4 className="font-bold text-gray-400 mb-2">連携について</h4>
               <ul className="text-sm text-gray-300 space-y-1">
-                <li>• 必最小限の権限のみを取得します</li>
-                <li>• すべての通信は暗号化されています</li>
-                <li>• データは日本国内のサーバーで管理</li>
-                <li>• いつでも連携解除が可能です</li>
+                <li>• Google Workspaceとの連携を予定</li>
+                <li>• 必要な権限のみを取得する予定</li>
+                <li>• 通信は暗号化される予定</li>
+                <li>• いつでも連携解除可能にする予定</li>
               </ul>
             </div>
 
