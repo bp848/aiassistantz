@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import mcpApiService from '../services/mcpApiService';
+import { logAction } from '../services/auditLog';
 
 export default function GmailDraftPanel() {
   const [to, setTo] = useState('');
@@ -20,6 +21,10 @@ export default function GmailDraftPanel() {
 
       setDraftId(result.draftId);
       setLoading(false);
+
+      await logAction('demo-tenant', 'gmail.create', {
+        to, subject, body
+      });
     } catch (error) {
       console.error('[createDraft] Error:', error);
 
@@ -47,6 +52,10 @@ export default function GmailDraftPanel() {
       setTo('');
       setSubject('');
       setBody('');
+
+      await logAction('demo-tenant', 'gmail.send', {
+        draftId, to, subject
+      });
     } catch (error) {
       console.error('[sendDraft] Error:', error);
 

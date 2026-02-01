@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import bootstrapService, { BootstrapResult } from '../services/bootstrapService';
 import GmailDraftPanel from './GmailDraftPanel';
+import CalendarCreatePanel from './CalendarCreatePanel';
 
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
@@ -63,6 +64,7 @@ export default function Dashboard() {
         </div>
 
         <GmailDraftPanel />
+        <CalendarCreatePanel />
       </div>
     </div>
   );

@@ -71,6 +71,21 @@ const tools = [
       },
       required: ['tenant_id', 'draftId']
     }
+  },
+  {
+    name: 'calendar.createEvent',
+    description: 'Google Calendarにイベントを作成する',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tenant_id: { type: 'string', description: 'テナントID' },
+        title: { type: 'string', description: 'イベントタイトル' },
+        start: { type: 'string', description: '開始時刻（ISO形式）' },
+        end: { type: 'string', description: '終了時刻（ISO形式）' },
+        description: { type: 'string', description: 'イベント説明' }
+      },
+      required: ['tenant_id', 'title', 'start', 'end']
+    }
   }
 ];
 
@@ -296,6 +311,35 @@ async function searchThreads(tenantId, query = '', maxResults = 10) {
   }
 }
 
+// Calendarイベント作成
+async function createCalendarEvent(tenantId, title, start, end, description = '') {
+  try {
+    const auth = await getGoogleClient(tenantId);
+    const calendar = google.calendar({ version: 'v3', auth });
+
+    const response = await calendar.events.insert({
+      calendarId: 'primary',
+      requestBody: {
+        summary: title,
+        description,
+        start: { dateTime: start },
+        end: { dateTime: end }
+      }
+    });
+
+    return {
+      eventId: response.data.id,
+      htmlLink: response.data.htmlLink
+    };
+  } catch (error) {
+    console.error('[createCalendarEvent] Error:', error);
+    if (error.code === 401 || error.code === 403) {
+      throw new Error('RECONNECT_REQUIRED');
+    }
+    throw error;
+  }
+}
+
 // JSON-RPC 2.0 メッセージ処理
 process.stdin.on('data', async (data) => {
   try {
@@ -332,6 +376,9 @@ process.stdin.on('data', async (data) => {
             break;
           case 'gmail.sendDraft':
             result = await sendDraft(args?.tenant_id, args?.draftId);
+            break;
+          case 'calendar.createEvent':
+            result = await createCalendarEvent(args?.tenant_id, args?.title, args?.start, args?.end, args?.description);
             break;
           default:
             throw new Error(`Unknown tool: ${name}`);
