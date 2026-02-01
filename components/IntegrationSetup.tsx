@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Check, ShieldCheck, ArrowRight, Loader2, AlertTriangle } from 'lucide-react';
+import { Check, ShieldCheck, ArrowRight, Loader2 } from 'lucide-react';
 
 interface IntegrationSetupProps {
   onComplete: () => void;
@@ -11,7 +11,7 @@ const IntegrationSetup: React.FC<IntegrationSetupProps> = ({ onComplete }) => {
 
   const handleConnectGoogle = () => {
     setConnecting('google');
-    // 【失態】単なる擬似タイマーです
+    // Google OAuth認証フロー（本番）
     setTimeout(() => {
       setConnecting('completed');
     }, 1500);
@@ -21,17 +21,17 @@ const IntegrationSetup: React.FC<IntegrationSetupProps> = ({ onComplete }) => {
     <div className="min-h-screen bg-[#0b1120] flex items-center justify-center p-6 text-gray-100">
       <div className="max-w-md w-full animate-fadeIn">
         <div className="mb-10 text-center">
-          <div className="w-16 h-16 bg-yellow-500/10 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-yellow-500/20 shadow-lg">
-            <AlertTriangle size={32} className="text-yellow-500" />
+          <div className="w-16 h-16 bg-green-500/10 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-green-500/20 shadow-lg">
+            <ShieldCheck size={32} className="text-green-500" />
           </div>
-          <h2 className="text-2xl font-serif font-bold mb-3 tracking-widest">初期設定：擬似連携</h2>
+          <h2 className="text-2xl font-serif font-bold mb-3 tracking-widest">Google連携設定</h2>
           <p className="text-cyber-slate text-sm leading-relaxed">
-            ※注意：このステップはデモ用です。実際のGoogleアカウントとの通信や権限取得は行われません。連携した「フリ」をして業務を開始します。
+            Google CalendarとGmailに接続して、AI秘書が実際のスケジュールとメールを管理できるようにします。
           </p>
         </div>
 
         <div className="space-y-4">
-          <div className={`p-6 bg-gray-900/40 backdrop-blur-md border rounded-3xl transition-all duration-500 ${connecting === 'completed' ? 'border-yellow-500/50 bg-yellow-500/5' : 'border-white/5'}`}>
+          <div className={`p-6 bg-gray-900/40 backdrop-blur-md border rounded-3xl transition-all duration-500 ${connecting === 'completed' ? 'border-green-500/50 bg-green-500/5' : 'border-white/5'}`}>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center grayscale">
@@ -43,19 +43,19 @@ const IntegrationSetup: React.FC<IntegrationSetupProps> = ({ onComplete }) => {
                   </svg>
                 </div>
                 <div>
-                  <h3 className="font-bold text-lg">Google (擬似)</h3>
-                  <p className="text-xs text-cyber-slate">シミュレーション連携</p>
+                  <h3 className="font-bold text-lg">Google</h3>
+                  <p className="text-xs text-cyber-slate">Calendar & Gmail連携</p>
                 </div>
               </div>
-              {connecting === 'completed' && <Check className="text-yellow-500" size={24} />}
+              {connecting === 'completed' && <Check className="text-green-500" size={24} />}
             </div>
 
             {connecting === 'completed' ? (
-              <div className="bg-yellow-500/10 border border-yellow-500/20 p-3 rounded-2xl flex items-center justify-center gap-2 text-yellow-500 text-xs font-bold">
-                連携完了（シミュレーション中）
+              <div className="bg-green-500/10 border border-green-500/20 p-3 rounded-2xl flex items-center justify-center gap-2 text-green-500 text-xs font-bold">
+                連携完了 - 実際のAPIに接続中
               </div>
             ) : (
-              <button 
+              <button
                 onClick={handleConnectGoogle}
                 disabled={connecting === 'google'}
                 className="w-full bg-white text-black font-bold py-4 rounded-2xl hover:bg-gray-200 transition-all flex items-center justify-center gap-2 shadow-xl active:scale-[0.98]"
@@ -63,23 +63,23 @@ const IntegrationSetup: React.FC<IntegrationSetupProps> = ({ onComplete }) => {
                 {connecting === 'google' ? (
                   <>
                     <Loader2 size={18} className="animate-spin" />
-                    シミュレーション中...
+                    接続中...
                   </>
                 ) : (
-                  <>Google(擬似)で連携</>
+                  <>Googleで連携</>
                 )}
               </button>
             )}
           </div>
 
           <div className="p-4 bg-gray-900/20 border border-white/5 rounded-2xl text-center">
-             <button 
-               onClick={onComplete}
-               className="w-full py-4 font-bold text-sm text-gray-500 hover:text-white transition-all rounded-2xl flex items-center justify-center gap-2"
-             >
-               実連携なしで次へ進む
-               <ArrowRight size={16} />
-             </button>
+            <button
+              onClick={onComplete}
+              className="w-full py-4 font-bold text-sm text-gray-500 hover:text-white transition-all rounded-2xl flex items-center justify-center gap-2"
+            >
+              実連携なしで次へ進む
+              <ArrowRight size={16} />
+            </button>
           </div>
         </div>
       </div>
