@@ -37,7 +37,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onActionSelect, avat
     let displayContent = text;
     const components: React.ReactNode[] = [];
 
-    // Parse Ticket
+    // 各種カスタムタグのパース
     const ticketRegex = /:::ticket\s*(\{.*?\})\s*:::/s;
     const ticketMatch = text.match(ticketRegex);
     let ticketData = null;
@@ -45,10 +45,9 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onActionSelect, avat
       try {
         ticketData = JSON.parse(ticketMatch[1]);
         displayContent = displayContent.replace(ticketRegex, ''); 
-      } catch (e) { console.error("Failed to parse ticket JSON"); }
+      } catch (e) { console.error("Ticket JSON parse error"); }
     }
 
-    // Parse Email List
     const emailRegex = /:::email\s*(\{.*?\})\s*:::/gs;
     const emailMatches = [...text.matchAll(emailRegex)];
     const emails: any[] = [];
@@ -57,11 +56,10 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onActionSelect, avat
         try {
           emails.push(JSON.parse(match[1]));
           displayContent = displayContent.replace(match[0], '');
-        } catch (e) { console.error("Failed to parse email JSON"); }
+        } catch (e) { console.error("Email JSON parse error"); }
       });
     }
 
-    // Parse Reply Draft (Proxy Function)
     const draftRegex = /:::draft\s*(\{.*?\})\s*:::/gs;
     const draftMatches = [...text.matchAll(draftRegex)];
     const drafts: EmailDraft[] = [];
@@ -70,7 +68,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onActionSelect, avat
         try {
           drafts.push(JSON.parse(match[1]));
           displayContent = displayContent.replace(match[0], '');
-        } catch (e) { console.error("Failed to parse draft JSON"); }
+        } catch (e) { console.error("Draft JSON parse error"); }
       });
     }
 
@@ -79,7 +77,6 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onActionSelect, avat
         <ReactMarkdown 
            components={{
             a: ({ node, ...props }: any) => <a {...props} target="_blank" className="text-blue-400 hover:underline" />,
-            strong: ({ node, ...props }: any) => <strong {...props} className="font-bold text-white" />
            }}
         >
           {displayContent}
@@ -92,12 +89,11 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onActionSelect, avat
         <div key="ticket" className="mt-3 bg-gray-800 border border-gray-700 p-3 rounded-lg max-w-full">
            <div className="flex items-center gap-2 mb-2 border-b border-gray-700 pb-2">
              <Ticket className="text-yellow-500" size={16} />
-             <span className="text-yellow-500 font-bold text-xs">手配完了</span>
+             <span className="text-yellow-500 font-bold text-xs">手配完了通知</span>
            </div>
            <div className="grid grid-cols-2 gap-2 text-xs text-gray-300">
-              <div><div className="text-gray-500">種類</div><div>{ticketData.type}</div></div>
+              <div><div className="text-gray-500">種別</div><div>{ticketData.type}</div></div>
               <div><div className="text-gray-500">番号</div><div>{ticketData.confirmationCode || '-'}</div></div>
-              <div className="col-span-2"><div className="text-gray-500">詳細</div><div className="truncate">{ticketData.details?.courseName || ticketData.details?.hotelName || '詳細確認'}</div></div>
            </div>
         </div>
       );
@@ -113,17 +109,14 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onActionSelect, avat
                 <div className="min-w-0 flex-1">
                    <div className="flex justify-between items-start mb-1">
                      <span className="font-bold text-gray-200 text-xs truncate">{email.subject}</span>
-                     <span className="text-[10px] bg-gray-700 px-1.5 rounded ml-1 whitespace-nowrap">未読</span>
+                     {email.unread && <span className="text-[10px] bg-red-900/40 text-red-400 px-1.5 rounded ml-1 whitespace-nowrap">未読</span>}
                    </div>
                    <p className="text-[10px] text-gray-400 mb-2 truncate">{email.from}</p>
-                   <p className="text-xs text-gray-300 line-clamp-2 bg-gray-900 p-2 rounded mb-2">
-                     {email.summary || "要約なし"}
-                   </p>
                    <button 
                      onClick={() => handleReplyEmail(email.id)}
                      className="flex items-center gap-1 text-[10px] bg-cyber-cyan/20 border border-cyber-cyan/30 hover:bg-cyber-cyan/40 px-3 py-1.5 rounded-full text-cyber-cyan transition-all"
                    >
-                     <Reply size={12} /> 代理返信を依頼
+                     <Reply size={12} /> 代理返信を作成
                    </button>
                 </div>
               </div>
@@ -141,37 +134,29 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onActionSelect, avat
               <div className="bg-cyber-cyan/10 px-4 py-2 border-b border-cyber-cyan/20 flex items-center justify-between">
                 <div className="flex items-center gap-2 text-cyber-cyan">
                   <UserCheck size={16} />
-                  <span className="text-[10px] font-bold uppercase tracking-widest">返信ドラフト承認待ち</span>
+                  <span className="text-[10px] font-bold uppercase tracking-widest">返信案の承認待ち</span>
                 </div>
-                <span className="text-[10px] text-cyber-slate">Proxy Mode Active</span>
               </div>
               <div className="p-4 space-y-3">
-                <div>
-                  <label className="text-[10px] text-gray-500 block">宛先</label>
-                  <p className="text-xs text-white font-mono">{draft.to}</p>
+                <div className="grid grid-cols-[60px_1fr] gap-2 text-xs">
+                  <span className="text-gray-500">宛先:</span><span className="text-white font-mono">{draft.to}</span>
+                  <span className="text-gray-500">件名:</span><span className="text-white font-bold">{draft.subject}</span>
                 </div>
-                <div>
-                  <label className="text-[10px] text-gray-500 block">件名</label>
-                  <p className="text-xs text-white font-bold">{draft.subject}</p>
-                </div>
-                <div>
-                  <label className="text-[10px] text-gray-500 block">本文</label>
-                  <div className="text-sm text-gray-300 bg-black/40 p-3 rounded-xl border border-white/5 leading-relaxed whitespace-pre-wrap">
-                    {draft.body}
-                  </div>
+                <div className="text-sm text-gray-300 bg-black/40 p-3 rounded-xl border border-white/5 leading-relaxed whitespace-pre-wrap">
+                  {draft.body}
                 </div>
                 <div className="pt-2 flex gap-2">
                   <button 
                     onClick={() => handleConfirmSend(draft)}
                     className="flex-1 bg-cyber-cyan text-black font-bold py-3 rounded-xl flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-lg"
                   >
-                    <Send size={16} /> この内容で送信
+                    <Send size={16} /> この内容で送信する
                   </button>
                   <button 
-                    onClick={() => onActionSelect?.('もう少し丁寧な表現に変更してください。')}
+                    onClick={() => onActionSelect?.('もう少しフォーマルな表現に変更してください。')}
                     className="px-4 py-3 bg-gray-800 text-gray-300 rounded-xl hover:bg-gray-700 transition-all text-xs"
                   >
-                    修正
+                    修正指示
                   </button>
                 </div>
               </div>
@@ -193,23 +178,13 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onActionSelect, avat
             {isUser ? (
               <User size={16} className="text-gray-400" /> 
             ) : avatarUrl ? (
-              <img src={avatarUrl} alt="AI" className="w-full h-full object-cover" />
+              <img src={avatarUrl} alt="秘書" className="w-full h-full object-cover" />
             ) : (
               <Bot size={16} className="text-gray-400" />
             )}
           </div>
 
           <div className={`flex flex-col min-w-0 ${isUser ? 'items-end' : 'items-start'}`}>
-            {message.attachment && (
-              <div className="mb-1 rounded overflow-hidden border border-gray-700 max-w-[150px]">
-                {message.attachment.type === 'image' ? (
-                  <img src={message.attachment.data} alt="Attached" className="w-full h-auto object-cover" />
-                ) : (
-                  <video src={message.attachment.data} className="w-full h-full object-contain bg-black" controls />
-                )}
-              </div>
-            )}
-
             <div className={`px-4 py-3 rounded-xl border relative group break-words w-full ${
               isUser 
                 ? 'bg-gray-800 border-gray-700 text-gray-100 rounded-tr-none' 
@@ -231,29 +206,6 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onActionSelect, avat
                  </div>
                ) : renderContent(message.text)}
             </div>
-
-            {/* Sources */}
-            {message.groundingSources && message.groundingSources.length > 0 && (
-              <div className="mt-1 flex flex-wrap gap-1">
-                {message.groundingSources.map((source, idx) => (
-                  <a key={idx} href={source.uri} target="_blank" rel="noreferrer" className="flex items-center gap-1 px-2 py-1 bg-gray-900 border border-gray-800 rounded text-[10px] text-blue-400 max-w-full">
-                    <ExternalLink size={8} />
-                    <span className="truncate max-w-[100px]">{source.title || 'Source'}</span>
-                  </a>
-                ))}
-              </div>
-            )}
-
-            {message.placeSources && message.placeSources.length > 0 && (
-              <div className="mt-1 flex flex-col gap-1 w-full">
-                {message.placeSources.map((place, idx) => (
-                  <a key={idx} href={place.uri} target="_blank" rel="noreferrer" className="flex items-center gap-2 p-2 bg-gray-900 border border-gray-800 rounded hover:border-gray-600">
-                    <MapPin size={12} className="text-gray-500" />
-                    <span className="text-xs text-gray-300 truncate">{place.title}</span>
-                  </a>
-                ))}
-              </div>
-            )}
             
             <span className="text-[10px] text-gray-600 mt-0.5 px-1">
               {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -261,7 +213,6 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onActionSelect, avat
           </div>
         </div>
 
-        {/* Suggested Actions */}
         {!isUser && message.suggestedActions && message.suggestedActions.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-2 ml-10">
             {message.suggestedActions.map((action, idx) => (
