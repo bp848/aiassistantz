@@ -48,17 +48,16 @@ class GoogleOAuthService {
   }
 
   // コールバック処理
-  async handleCallback(code: string, state: string): Promise<GoogleTokenResponse> {
+  async handleCallback(code: string, state: string): Promise<void> {
     try {
       const stateData: GoogleAuthState = JSON.parse(atob(state));
 
       // 認証コードをトークンに交換
       const tokenResponse = await this.exchangeCodeForToken(code);
 
-      // トークンを保存
+      // トークンを保存（tenant単位でUPSERT）
       await this.saveTokens(stateData.tenantId, tokenResponse);
 
-      return tokenResponse;
     } catch (error) {
       console.error('OAuth callback error:', error);
       throw error;
@@ -101,6 +100,8 @@ class GoogleOAuthService {
         token_expires_at: expiresAt.toISOString(),
         scope: tokens.scope,
         updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'tenant_id'
       });
 
     if (error) {
