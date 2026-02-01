@@ -1,22 +1,45 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { supabase } from '../services/supabaseClient';
 
 export default function Integration() {
+  const [loading, setLoading] = useState(true);
+  const [tenant, setTenant] = useState<any>(null);
+
   useEffect(() => {
     const check = async () => {
       try {
-        const result = await fetch('/api/bootstrap', {
-          credentials: 'include',
-        });
+        const { data: { user } } = await supabase.auth.getUser();
 
-        if (!result.ok) return;
+        if (!user) {
+          window.location.href = '/auth/login';
+          return;
+        }
 
-        const json = await result.json();
+        // tenantを取得
+        const { data: tenantData } = await supabase
+          .from('tenants')
+          .select('*')
+          .eq('owner_user_id', user.id)
+          .single();
 
-        if (json.status === 'connected') {
-          window.location.href = '/dashboard';
+        if (tenantData) {
+          // Google連携チェック
+          const { data: authData } = await supabase
+            .from('google_auth')
+            .select('id')
+            .eq('tenant_id', tenantData.id)
+            .single();
+
+          if (authData) {
+            window.location.href = '/dashboard';
+            return;
+          }
+          setTenant(tenantData);
         }
       } catch (error) {
         console.error('[Integration] Check error:', error);
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -24,17 +47,16 @@ export default function Integration() {
   }, []);
 
   const handleReconnect = async () => {
-    try {
-      // TODO: tenantIdを実際のテナントIDに置き換える
-      const tenantId = 'demo-tenant';
+    if (!tenant) return;
 
+    try {
       const response = await fetch('https://frbdpmqxgtgnjeccpbub.supabase.co/functions/v1/google-oauth-start', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
         },
-        body: JSON.stringify({ tenantId })
+        body: JSON.stringify({ tenantId: tenant.id })
       });
 
       if (!response.ok) {
@@ -47,6 +69,14 @@ export default function Integration() {
       console.error('[Integration] Reconnect error:', error);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0b1120] flex items-center justify-center">
+        <div className="text-white">確認中...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0b1120] flex items-center justify-center p-6 text-gray-100">
