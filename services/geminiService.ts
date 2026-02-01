@@ -2,6 +2,8 @@ import { GoogleGenAI, Type, FunctionDeclaration, GenerateContentResponse } from 
 import { AgentMode, Message, Sender, StoredDocument } from '../types';
 import { listCalendarEvents, createCalendarEvent, searchEmails, getEmailDetail, sendEmail } from './googleApi';
 import { supabase } from './supabaseClient';
+import mcpService from './mcpService';
+import ResponseAdapter from './responseAdapter';
 
 export const IS_DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
 
@@ -118,42 +120,77 @@ const gmailTool: FunctionDeclaration = {
 
 async function handleToolCall(fnName: string, args: any) {
   try {
+    let mcpResponse;
+    let toolName;
+
     if (fnName === 'manage_calendar') {
       if (args.action === 'list') {
-        const events = await listCalendarEvents(args.date);
-        return events;
+        toolName = 'list_events';
+        mcpResponse = await mcpService.callTool(toolName, {
+          date: args.date || new Date().toISOString().split('T')[0],
+          maxResults: 10
+        });
       }
-      if (args.action === 'create') {
-        return await createCalendarEvent({
+      else if (args.action === 'create') {
+        toolName = 'create_event';
+        mcpResponse = await mcpService.callTool(toolName, {
           title: args.title || 'Untitled event',
           date: args.date || new Date().toISOString().split('T')[0],
           time: args.time || '09:00',
-          duration: args.duration || '60',
-          description: args.description || '',
-          account: args.account || 'company'
+          duration: parseInt(args.duration) || 60,
+          description: args.description || ''
         });
       }
-      return { error: 'Unknown calendar action' };
+      else {
+        return { error: 'Unknown calendar action' };
+      }
+    }
+    else if (fnName === 'manage_gmail') {
+      if (args.action === 'search') {
+        toolName = 'search_threads';
+        mcpResponse = await mcpService.callTool(toolName, {
+          query: args.query || '',
+          maxResults: 10
+        });
+      }
+      else if (args.action === 'get_detail') {
+        if (!args.messageId) throw new Error('messageId is required');
+        toolName = 'get_message';
+        mcpResponse = await mcpService.callTool(toolName, {
+          messageId: args.messageId
+        });
+      }
+      else if (args.action === 'send') {
+        if (!args.to || !args.body) throw new Error('to and body are required to send email');
+        toolName = 'send_message';
+        mcpResponse = await mcpService.callTool(toolName, {
+          to: args.to,
+          subject: args.subject || '(no subject)',
+          body: args.body
+        });
+      }
+      else {
+        return { error: 'Unknown gmail action' };
+      }
+    }
+    else {
+      return { error: 'Unknown tool' };
     }
 
-    if (fnName === 'manage_gmail') {
-      if (args.action === 'search') {
-        return await searchEmails(args);
-      }
-      if (args.action === 'get_detail') {
-        if (!args.messageId) throw new Error('messageId is required');
-        return await getEmailDetail(args);
-      }
-      if (args.action === 'send') {
-        if (!args.to || !args.body) throw new Error('to and body are required to send email');
-        return await sendEmail({ to: args.to, subject: args.subject || '(no subject)', body: args.body });
-      }
-      return { error: 'Unknown gmail action' };
+    // MCPレスポンスをUIプロトコルに変換
+    if (mcpResponse && mcpResponse.result) {
+      const formattedResponse = ResponseAdapter.formatResponse(toolName, mcpResponse.result);
+      return {
+        result: mcpResponse.result,
+        formatted: formattedResponse
+      };
     }
+
+    return mcpResponse;
   } catch (error: any) {
+    console.error('[handleToolCall] Error:', error);
     return { error: error?.message || 'Tool call failed' };
   }
-  return { error: 'Unknown tool' };
 }
 
 export const getDashboardData = async () => {
