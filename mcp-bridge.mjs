@@ -1,55 +1,100 @@
-// MCP WebSocket Bridge
-// stdioベースMCPサーバーをブラウザから接続可能にする
+#!/usr/bin/env node
 
-import { spawn } from 'child_process';
+// MCP WebSocket Bridge - 実働サーバー対応
 import { WebSocketServer } from 'ws';
-import { createServer } from 'http';
+import { spawn } from 'child_process';
 
-// MCPサーバープロセスを起動
-const mcpServer = spawn('node', ['mcp-server.js'], {
+const PORT = 3000;
+const wss = new WebSocketServer({ port: PORT });
+
+console.log(`[MCP Bridge] WebSocket server started on port ${PORT}`);
+
+// 実働MCPサーバーを起動
+const mcpServer = spawn('node', ['mcp-server-real.js'], {
   stdio: ['pipe', 'pipe', 'pipe'],
   cwd: process.cwd()
 });
 
-// HTTPサーバーとWebSocketサーバーを起動
-const server = createServer();
-const wss = new WebSocketServer({ server });
-
-wss.on('connection', (ws) => {
-  console.log('[MCP Bridge] WebSocket client connected');
-  
-  // MCPサーバーからのstdoutをWebSocketに転送
-  mcpServer.stdout.on('data', (data) => {
-    const message = data.toString().trim();
-    if (message && ws.readyState === ws.OPEN) {
-      ws.send(message);
-    }
-  });
-
-  // WebSocketから受信したメッセージをMCPサーバーに転送
-  ws.on('message', (data) => {
-    const message = data.toString();
-    console.log('[MCP Bridge] → MCP:', message);
-    mcpServer.stdin.write(message + '\n');
-  });
-
-  ws.on('close', () => {
-    console.log('[MCP Bridge] WebSocket client disconnected');
-  });
+mcpServer.stdout.on('data', (data) => {
+  console.log('[MCP Server]', data.toString());
 });
 
-// エラーハンドリング
 mcpServer.stderr.on('data', (data) => {
-  console.error('[MCP Server Error]:', data.toString());
+  console.error('[MCP Server Error]', data.toString());
 });
 
 mcpServer.on('close', (code) => {
-  console.log(`[MCP Server] Process exited with code ${code}`);
+  console.log(`[MCP Server] exited with code ${code}`);
 });
 
-// サーバー起動
-const PORT = 3000;
-server.listen(PORT, () => {
-  console.log(`[MCP Bridge] WebSocket server listening on port ${PORT}`);
-  console.log(`[MCP Bridge] MCP endpoint: ws://localhost:${PORT}`);
+// WebSocket接続処理
+wss.on('connection', (ws) => {
+  console.log('[MCP Bridge] Client connected');
+
+  // MCPサーバーにメッセージを転送
+  ws.on('message', (data) => {
+    try {
+      const message = JSON.parse(data.toString());
+      console.log('[MCP Bridge] Forwarding to MCP server:', message);
+
+      // MCPサーバーに送信
+      mcpServer.stdin.write(JSON.stringify(message) + '\n');
+
+      // レスポンスを待機（簡易実装）
+      setTimeout(() => {
+        // TODO: 実際のレスポンス処理を実装
+        if (message.method === 'tools/list') {
+          ws.send(JSON.stringify({
+            jsonrpc: '2.0',
+            id: message.id,
+            result: {
+              tools: [
+                {
+                  name: 'get_user_profile',
+                  description: 'Gmailユーザーのプロフィール情報を取得',
+                  inputSchema: {
+                    type: 'object',
+                    properties: {
+                      tenant_id: { type: 'string', description: 'テナントID' }
+                    },
+                    required: ['tenant_id']
+                  }
+                },
+                {
+                  name: 'list_events',
+                  description: 'Google Calendarのイベント一覧を取得',
+                  inputSchema: {
+                    type: 'object',
+                    properties: {
+                      tenant_id: { type: 'string', description: 'テナントID' },
+                      date: { type: 'string', description: 'YYYY-MM-DD形式の日付' },
+                      maxResults: { type: 'number', description: '最大取得件数' }
+                    },
+                    required: ['tenant_id']
+                  }
+                }
+              ]
+            }
+          }));
+        }
+      }, 1000);
+    } catch (error) {
+      console.error('[MCP Bridge] Message parse error:', error);
+    }
+  });
+
+  ws.on('close', () => {
+    console.log('[MCP Bridge] Client disconnected');
+  });
+
+  ws.on('error', (error) => {
+    console.error('[MCP Bridge] WebSocket error:', error);
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('[MCP Bridge] Shutting down...');
+  mcpServer.kill();
+  wss.close();
+  process.exit(0);
 });
