@@ -1,9 +1,20 @@
-#!/usr/bin/env node
-
 // 最小MCP Server - stdioベース
 // JSON-RPC 2.0 準拠
 
+import { google } from 'googleapis';
+
 const tools = [
+  {
+    name: 'get_user_profile',
+    description: 'Gmailユーザーのプロフィール情報を取得',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tenant_id: { type: 'string', description: 'テナントID' }
+      },
+      required: ['tenant_id']
+    }
+  },
   {
     name: 'list_events',
     description: 'Google Calendarのイベント一覧を取得',
@@ -100,9 +111,12 @@ function handleRequest(message) {
     const { name, arguments: args } = message.params;
     console.error('[MCP Server] Calling:', name);
 
-    // ダミー実装
+    // ダミー実装から実API呼び出しに変更
     let result;
     switch (name) {
+      case 'get_user_profile':
+        result = await this.getUserProfile(args?.tenant_id);
+        break;
       case 'list_events':
         result = {
           events: [

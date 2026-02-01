@@ -23,6 +23,31 @@ export default function Integration() {
     check();
   }, []);
 
+  const handleReconnect = async () => {
+    try {
+      // TODO: tenantIdを実際のテナントIDに置き換える
+      const tenantId = 'demo-tenant';
+
+      const response = await fetch('https://frbdpmqxgtgnjeccpbub.supabase.co/functions/v1/google-oauth-start', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+        },
+        body: JSON.stringify({ tenantId })
+      });
+
+      if (!response.ok) {
+        throw new Error('OAuth start failed');
+      }
+
+      const { authUrl } = await response.json();
+      window.open(authUrl, 'google-oauth', 'width=500,height=600');
+    } catch (error) {
+      console.error('[Integration] Reconnect error:', error);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#0b1120] flex items-center justify-center p-6 text-gray-100">
       <div className="max-w-md w-full">
@@ -43,12 +68,12 @@ export default function Integration() {
             </p>
           </div>
 
-          <a
-            href="/api/google/oauth/start"
+          <button
+            onClick={handleReconnect}
             className="block w-full bg-blue-600 text-white font-bold py-4 rounded-xl hover:bg-blue-700 transition-all text-center shadow-lg active:scale-[0.98]"
           >
             Google連携を再開する
-          </a>
+          </button>
         </div>
       </div>
     </div>

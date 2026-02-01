@@ -1,19 +1,40 @@
 
 import { GoogleGenAI, Type, FunctionDeclaration, GenerateContentResponse } from "@google/genai";
 import { AgentMode, Message, Sender, StoredDocument } from "../types";
+import mcpService from './mcpService';
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const COMPANY_PROFILE = `
 社名: 文唱堂印刷株式会社
-代表者: 代表取締役 橋本 唱市
+代表者: 社長
 ※本番環境: MCP経由で実際のGoogle Calendar/Gmailと連動中
 `;
 
-let currentUserName = "橋本 唱市";
+let currentUserName = "社長";
 
 export const initializeUserContext = (userName: string) => {
   currentUserName = userName;
+};
+
+// Gmailからユーザー情報を取得
+export const getUserProfileFromGmail = async (): Promise<string> => {
+  try {
+    // MCP経由でGmailユーザープロフィールを取得
+    const response = await mcpService.callTool('get_user_profile', {});
+
+    if (response.result && response.result.name) {
+      const userName = response.result.name;
+      currentUserName = userName;
+      return userName;
+    }
+
+    // 取得できない場合はデフォルト
+    return "社長";
+  } catch (error) {
+    console.error('[getUserProfile] Error:', error);
+    return "社長";
+  }
 };
 
 // 【本番稼働】MCP経由で実際のGoogle APIに接続
