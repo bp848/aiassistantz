@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { Check, ShieldCheck, ArrowRight, Loader2 } from 'lucide-react';
+import googleOAuthService from '../services/googleOAuthService';
 
 interface IntegrationSetupProps {
   onComplete: () => void;
@@ -13,12 +14,24 @@ const IntegrationSetup: React.FC<IntegrationSetupProps> = ({ onComplete }) => {
     setConnecting('google');
 
     try {
-      // Gmailからユーザープロフィールを取得
-      // await getUserProfileFromGmail();
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setConnecting('completed');
+      // 実際のGoogle OAuthフローを開始
+      // TODO: tenantIdを実際のテナントIDに置き換える
+      const tenantId = 'demo-tenant';
+      const authUrl = await googleOAuthService.startOAuth(tenantId);
+
+      // OAuthウィンドウを開く
+      const popup = window.open(authUrl, 'google-oauth', 'width=500,height=600');
+
+      // ポップアップが閉じられるまで待機
+      const checkClosed = setInterval(() => {
+        if (popup?.closed) {
+          clearInterval(checkClosed);
+          setConnecting('completed');
+        }
+      }, 1000);
+
     } catch (error) {
-      console.error('連携準備エラー:', error);
+      console.error('OAuth開始エラー:', error);
       setConnecting('completed');
     }
   };
