@@ -45,6 +45,32 @@ const tools = [
       },
       required: ['tenant_id']
     }
+  },
+  {
+    name: 'gmail.createDraft',
+    description: 'Gmailに下書きを作成する',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tenant_id: { type: 'string', description: 'テナントID' },
+        to: { type: 'string', description: '送信先メールアドレス' },
+        subject: { type: 'string', description: '件名' },
+        body: { type: 'string', description: '本文' }
+      },
+      required: ['tenant_id', 'to', 'subject', 'body']
+    }
+  },
+  {
+    name: 'gmail.sendDraft',
+    description: 'Gmailの下書きを送信する',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tenant_id: { type: 'string', description: 'テナントID' },
+        draftId: { type: 'string', description: '下書きID' }
+      },
+      required: ['tenant_id', 'draftId']
+    }
   }
 ];
 
@@ -161,7 +187,73 @@ async function listEvents(tenantId, date, maxResults = 10) {
   }
 }
 
-// Gmail検索
+// RFC822 メール生成
+function buildRawEmail(to, subject, body) {
+  const message =
+    `To: ${to}\r\n` +
+    `Subject: ${subject}\r\n` +
+    `Content-Type: text/plain; charset="UTF-8"\r\n` +
+    `Content-Transfer-Encoding: 7bit\r\n\r\n` +
+    body;
+
+  return Buffer.from(message)
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+}
+
+// Gmail下書き作成
+async function createDraft(tenantId, to, subject, body) {
+  try {
+    const auth = await getGoogleClient(tenantId);
+    const gmail = google.gmail({ version: 'v1', auth });
+
+    const raw = buildRawEmail(to, subject, body);
+
+    const response = await gmail.users.drafts.create({
+      userId: 'me',
+      requestBody: {
+        message: { raw }
+      }
+    });
+
+    return {
+      draftId: response.data.id,
+      threadId: response.data.message.threadId
+    };
+  } catch (error) {
+    console.error('[createDraft] Error:', error);
+    if (error.code === 401 || error.code === 403) {
+      throw new Error('RECONNECT_REQUIRED');
+    }
+    throw error;
+  }
+}
+
+// Gmail下書き送信
+async function sendDraft(tenantId, draftId) {
+  try {
+    const auth = await getGoogleClient(tenantId);
+    const gmail = google.gmail({ version: 'v1', auth });
+
+    const response = await gmail.users.drafts.send({
+      userId: 'me',
+      id: draftId
+    });
+
+    return {
+      messageId: response.data.id,
+      threadId: response.data.threadId
+    };
+  } catch (error) {
+    console.error('[sendDraft] Error:', error);
+    if (error.code === 401 || error.code === 403) {
+      throw new Error('RECONNECT_REQUIRED');
+    }
+    throw error;
+  }
+}
 async function searchThreads(tenantId, query = '', maxResults = 10) {
   try {
     const auth = await getGoogleClient(tenantId);
@@ -234,6 +326,12 @@ process.stdin.on('data', async (data) => {
             break;
           case 'search_threads':
             result = await searchThreads(args?.tenant_id, args?.query, args?.maxResults);
+            break;
+          case 'gmail.createDraft':
+            result = await createDraft(args?.tenant_id, args?.to, args?.subject, args?.body);
+            break;
+          case 'gmail.sendDraft':
+            result = await sendDraft(args?.tenant_id, args?.draftId);
             break;
           default:
             throw new Error(`Unknown tool: ${name}`);

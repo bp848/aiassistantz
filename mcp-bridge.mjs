@@ -72,6 +72,32 @@ wss.on('connection', (ws) => {
                     },
                     required: ['tenant_id']
                   }
+                },
+                {
+                  name: 'gmail.createDraft',
+                  description: 'Gmailに下書きを作成する',
+                  inputSchema: {
+                    type: 'object',
+                    properties: {
+                      tenant_id: { type: 'string', description: 'テナントID' },
+                      to: { type: 'string', description: '送信先メールアドレス' },
+                      subject: { type: 'string', description: '件名' },
+                      body: { type: 'string', description: '本文' }
+                    },
+                    required: ['tenant_id', 'to', 'subject', 'body']
+                  }
+                },
+                {
+                  name: 'gmail.sendDraft',
+                  description: 'Gmailの下書きを送信する',
+                  inputSchema: {
+                    type: 'object',
+                    properties: {
+                      tenant_id: { type: 'string', description: 'テナントID' },
+                      draftId: { type: 'string', description: '下書きID' }
+                    },
+                    required: ['tenant_id', 'draftId']
+                  }
                 }
               ]
             }
