@@ -1,11 +1,5 @@
 import { useEffect, useState } from 'react';
-
-type BootstrapResult = {
-  status: 'connected' | 'reconnect_required';
-  executiveName?: string;
-  email?: string;
-  todayEvents?: any[];
-};
+import bootstrapService, { BootstrapResult } from '../services/bootstrapService';
 
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
@@ -15,23 +9,15 @@ export default function Dashboard() {
   useEffect(() => {
     const bootstrap = async () => {
       try {
-        const res = await fetch('/api/bootstrap', {
-          credentials: 'include',
-        });
+        const result = await bootstrapService.bootstrap();
 
-        if (!res.ok) {
-          throw new Error(`bootstrap failed: ${res.status}`);
-        }
-
-        const json: BootstrapResult = await res.json();
-
-        if (json.status !== 'connected') {
+        if (result.status !== 'connected') {
           // 再連携が必要
           window.location.href = '/integration';
           return;
         }
 
-        setData(json);
+        setData(result);
       } catch (e: any) {
         console.error(e);
         setError('初期データの取得に失敗しました');
