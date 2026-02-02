@@ -11,7 +11,7 @@ export default function Integration() {
         const { data: { user } } = await supabase.auth.getUser();
 
         if (!user) {
-          window.location.href = '/auth/login';
+          window.location.href = '/#/';
           return;
         }
 
