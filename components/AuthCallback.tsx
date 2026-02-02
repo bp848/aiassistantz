@@ -1,35 +1,40 @@
 import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabaseClient';
 import { ensureTenant } from '../services/ensureTenant';
 
 export default function AuthCallback() {
+  const navigate = useNavigate();
+
   useEffect(() => {
     const handleCallback = async () => {
       try {
-        // Supabase Authセッション取得
-        const { data: { user }, error } = await supabase.auth.getUser();
+        const { data, error } = await supabase.auth.getSessionFromUrl({ storeSession: true });
 
-        if (error || !user) {
-          console.error('[AuthCallback] No user found');
-          window.location.href = '/#/integration';
+        if (error) {
+          throw error;
+        }
+
+        const session = data?.session;
+
+        if (!session?.user) {
+          console.error('[AuthCallback] No session user returned');
+          navigate('/integration', { replace: true });
           return;
         }
 
-        // ユーザーに紐づくtenantを確保
-        await ensureTenant(user.id, user.email!);
+        await ensureTenant(session.user.id, session.user.email!);
 
-        // OAuthコールバック処理（もしcodeがある場合）
         const urlParams = new URLSearchParams(window.location.search);
         const code = urlParams.get('code');
         const state = urlParams.get('state');
 
         if (code && state) {
-          // Google Workspace連携の場合
           const response = await fetch('https://frbdpmqxgtgnjeccpbub.supabase.co/functions/v1/google-oauth-callback', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
             },
             body: JSON.stringify({ code, state })
           });
@@ -39,19 +44,19 @@ export default function AuthCallback() {
           }
         }
 
-        window.location.href = '/#/dashboard';
+        navigate('/dashboard', { replace: true });
       } catch (error) {
         console.error('[AuthCallback] Error:', error);
-        window.location.href = '/#/integration';
+        navigate('/integration', { replace: true });
       }
     };
 
     handleCallback();
-  }, []);
+  }, [navigate]);
 
   return (
     <div className="min-h-screen bg-[#0b1120] flex items-center justify-center">
-      <div className="text-white">認証処理中...</div>
+      <div className="text-white">隱崎ｨｼ蜃ｦ逅・ｸｭ...</div>
     </div>
   );
 }
