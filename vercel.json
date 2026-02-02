@@ -1,4 +1,9 @@
-﻿{
+{
+  "redirects": [
+    { "source": "/auth/login", "destination": "/#/", "permanent": false },
+    { "source": "/auth/callback", "destination": "/#/auth/callback", "permanent": false },
+    { "source": "/auth/:path*", "destination": "/#/auth/:path*", "permanent": false }
+  ],
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ]
