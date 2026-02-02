@@ -23,7 +23,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthComplete }) => {
         const { data, error } = await supabase.auth.signInWithOAuth({
           provider: 'google',
           options: {
-            redirectTo: 'https://assistant.b-p.co.jp/#/auth/callback'
+            redirectTo: window.location.origin + '/auth/callback'
           }
         });
 
@@ -31,9 +31,12 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthComplete }) => {
       }
     } catch (error) {
       console.error('[AuthScreen] Social login error:', error);
+    } finally {
       setLoading(null);
     }
   };
+
+  const canSubmit = email.length > 0 && password.length > 0 && loading !== 'email';
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -200,7 +203,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthComplete }) => {
 
             <button
               type="submit"
-              disabled={!!loading}
+              disabled={!canSubmit}
               className="w-full bg-gradient-to-r from-cyber-cyan to-blue-600 text-white font-bold py-5 rounded-2xl hover:opacity-90 transition-all active:scale-[0.98] shadow-xl shadow-cyber-cyan/10 flex items-center justify-center gap-2 mt-4"
             >
               {loading === 'email' ? (
