@@ -23,7 +23,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthComplete }) => {
         const { data, error } = await supabase.auth.signInWithOAuth({
           provider: 'google',
           options: {
-            redirectTo: 'https://assistant.b-p.co.jp/auth/callback'
+            redirectTo: 'https://assistant.b-p.co.jp/#/auth/callback'
           }
         });
 

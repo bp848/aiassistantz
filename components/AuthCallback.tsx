@@ -11,7 +11,7 @@ export default function AuthCallback() {
 
         if (error || !user) {
           console.error('[AuthCallback] No user found');
-          window.location.href = '/integration';
+          window.location.href = '/#/integration';
           return;
         }
 
@@ -39,10 +39,10 @@ export default function AuthCallback() {
           }
         }
 
-        window.location.href = '/dashboard';
+        window.location.href = '/#/dashboard';
       } catch (error) {
         console.error('[AuthCallback] Error:', error);
-        window.location.href = '/integration';
+        window.location.href = '/#/integration';
       }
     };
 
