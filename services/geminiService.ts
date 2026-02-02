@@ -1,108 +1,40 @@
 
-import { GoogleGenAI, Type, FunctionDeclaration, GenerateContentResponse } from "@google/genai";
+import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { AgentMode, Message, Sender, StoredDocument } from "../types";
-import mcpService from './mcpService';
+import { mcp } from "./mcpService";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
-export const COMPANY_PROFILE = `
-社名: 文唱堂印刷株式会社
-代表者: 社長
-※本番環境: MCP経由で実際のGoogle Calendar/Gmailと連動中
-`;
-
-let currentUserName = "社長";
+let currentUserName = "橋本 唱市";
 
 export const initializeUserContext = (userName: string) => {
   currentUserName = userName;
 };
 
-// Gmailからユーザー情報を取得
-export const getUserProfileFromGmail = async (): Promise<string> => {
-  try {
-    // MCP経由でGmailユーザープロフィールを取得
-    const response = await mcpService.callTool('get_user_profile', {});
-
-    if (response.result && response.result.name) {
-      const userName = response.result.name;
-      currentUserName = userName;
-      return userName;
-    }
-
-    // 取得できない場合はデフォルト
-    return "社長";
-  } catch (error) {
-    console.error('[getUserProfile] Error:', error);
-    return "社長";
-  }
-};
-
-// 【本番稼働】MCP経由で実際のGoogle APIに接続
-let liveCalendar = [
-  { id: '1', title: '本番稼働: 社長室ミーティング', date: new Date().toISOString().split('T')[0], time: '14:00', duration: '60', description: 'MCP統合完了報告会', account: 'company' },
-];
-
-let liveEmails = [
-  { id: 'e1', from: 'ishijima@b-p.co.jp', subject: '本番稼働のご連絡', body: 'システムが本番環境で稼働開始しました。', unread: true, date: '2025-02-01', timestamp: '2025-02-01T10:15:00Z', summary: '本番化完了通知' },
-];
-
-const calendarTool: FunctionDeclaration = {
-  name: 'manage_calendar',
-  parameters: {
-    type: Type.OBJECT,
-    description: 'カレンダーの操作。MCP経由で実際のGoogle Calendarに接続。',
-    properties: {
-      action: { type: Type.STRING, description: 'list, create' },
-      date: { type: Type.STRING },
-      title: { type: Type.STRING }
-    },
-    required: ['action']
-  }
-};
-
-const gmailTool: FunctionDeclaration = {
-  name: 'manage_gmail',
-  parameters: {
-    type: Type.OBJECT,
-    description: 'メールの操作。MCP経由で実際のGmailに接続。',
-    properties: {
-      action: { type: Type.STRING, description: 'search, get_detail, send' },
-      messageId: { type: Type.STRING }
-    },
-    required: ['action']
-  }
-};
-
+/**
+ * AIの要求をMCPサーバ（Google Workspace実機）へ中継
+ * 内部関数名を MCP サーバーの標準的なツール名（google_calendar_... 等）にマッピングします。
+ */
 async function handleToolCall(fnName: string, args: any) {
-  console.log(`[Production Tool Call] ${fnName} called with:`, args);
-
-  // MCP経由で実際のAPI呼び出し
   try {
+    let targetTool = fnName;
+    
+    // アプリ内定義の抽象化関数名を、Workspace MCPサーバの具象ツール名にマッピング
     if (fnName === 'manage_calendar') {
-      if (args.action === 'list') {
-        // 実際のCalendar API呼び出し
-        return { events: '本番カレンダーデータ' };
-      }
-      return { status: 'success', message: 'カレンダー操作完了' };
+      if (args.action === 'list') targetTool = 'google_calendar_list_events';
+      else if (args.action === 'create') targetTool = 'google_calendar_create_event';
+    } else if (fnName === 'manage_gmail') {
+      if (args.action === 'search') targetTool = 'google_gmail_list_messages';
+      else if (args.action === 'get_detail') targetTool = 'google_gmail_get_message';
+      else if (args.action === 'draft') targetTool = 'google_gmail_create_draft';
     }
-    if (fnName === 'manage_gmail') {
-      if (args.action === 'search') {
-        // 実際のGmail API呼び出し
-        return { emails: '本番メールデータ' };
-      }
-      return { status: 'success', message: 'メール操作完了' };
-    }
+
+    // MCP 実機接続を介して実行
+    const mcpResult = await mcp.callTool(targetTool, args);
+    return mcpResult;
   } catch (error) {
-    return { error: `API呼び出しエラー: ${error}` };
+    console.error(`[Tool Execution Failed] ${fnName}:`, error);
+    return { error: `MCP Tool Execution Failed: ${fnName}` };
   }
-
-  return { error: 'ツール未実装' };
 }
-
-export const getDashboardData = () => ({
-  events: liveCalendar,
-  emails: liveEmails
-});
 
 export const streamGeminiResponse = async (
   history: Message[],
@@ -114,38 +46,87 @@ export const streamGeminiResponse = async (
   attachment?: { mimeType: string; data: string },
   knowledgeBase: StoredDocument[] = []
 ) => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  
   try {
-    let modelName = 'gemini-3-flash-preview';
-    let tools: any[] = [{ functionDeclarations: [calendarTool, gmailTool] }];
+    const modelName = mode === AgentMode.ADVISOR ? 'gemini-3-pro-preview' : 'gemini-3-flash-preview';
+    
+    const tools = [{ 
+      functionDeclarations: [
+        {
+          name: 'manage_calendar',
+          parameters: {
+            type: Type.OBJECT,
+            description: '社長のカレンダー（Google Calendar）を操作します。',
+            properties: {
+              action: { type: Type.STRING, enum: ['list', 'create'], description: '操作内容' },
+              query: { type: Type.STRING, description: '検索クエリ' },
+              title: { type: Type.STRING, description: '予定のタイトル' },
+              start: { type: Type.STRING, description: '開始日時(ISO)' }
+            },
+            required: ['action']
+          }
+        },
+        {
+          name: 'manage_gmail',
+          parameters: {
+            type: Type.OBJECT,
+            description: '社長のメール（Gmail）を操作します。',
+            properties: {
+              action: { type: Type.STRING, enum: ['search', 'get_detail', 'draft'], description: '操作内容' },
+              query: { type: Type.STRING, description: '検索クエリ' },
+              messageId: { type: Type.STRING, description: 'メッセージID' },
+              to: { type: Type.STRING, description: '宛先' },
+              subject: { type: Type.STRING, description: '件名' },
+              body: { type: Type.STRING, description: '本文' }
+            },
+            required: ['action']
+          }
+        }
+      ] 
+    }];
 
-    if (mode === AgentMode.ADVISOR) modelName = 'gemini-3-pro-preview';
-    else if (mode === AgentMode.RESEARCHER) tools.push({ googleSearch: {} });
+    if (mode === AgentMode.RESEARCHER) {
+      tools.push({ googleSearch: {} } as any);
+    }
 
     const chat = ai.chats.create({
       model: modelName,
       config: {
         systemInstruction: `あなたは${currentUserName}社長の専属AI秘書です。
-MCP経由で実際のGoogle Calendar/Gmail APIに接続し、実データを処理します。
-アクセス権が無い場合は正直に不足を伝えてください。`,
+現在、Google Workspace MCPサーバに実機接続されており、カレンダーやメールにリアルタイムでアクセスできます。
+
+【行動指針】
+1. 事実性: 不確かな記憶に頼らず、必ず manage_calendar や manage_gmail ツールを叩いて最新の実データを取得してください。
+2. 視覚化プロトコル: 
+   - メールリスト取得時は :::email {JSON} ::: 形式で報告してください。
+   - メールの返信案を作成した際は :::draft {JSON} ::: 形式で社長の承認を求めてください。
+   - 予約や手配が完了した際は :::ticket {JSON} ::: 形式で通知してください。
+3. 効率性: 社長の時間を守るため、情報の要約と先回りの提案（Suggested Actions）を徹底してください。
+4. 口調: 常に丁寧かつ冷静で、経営を支える参謀としての品位を保ってください。`,
         tools,
       }
     });
 
     const parts: any[] = [{ text: currentMessage }];
-    if (attachment) parts.push({ inlineData: { mimeType: attachment.mimeType, data: attachment.data } });
+    if (attachment) {
+      parts.push({ inlineData: { mimeType: attachment.mimeType, data: attachment.data } });
+    }
 
-    let stream = await chat.sendMessageStream({ message: { parts } });
+    let streamResponse = await chat.sendMessageStream({ message: { parts } });
 
-    const processStream = async (s: any) => {
-      for await (const chunk of s) {
+    const processStream = async (stream: any) => {
+      for await (const chunk of stream) {
         const c = chunk as GenerateContentResponse;
         if (c.text) onChunk(c.text, c.candidates?.[0]?.groundingMetadata);
-        const fcs = c.functionCalls;
-        if (fcs && fcs.length > 0) {
-          const responses: any[] = [];
-          for (const fc of fcs) {
+        
+        if (c.functionCalls && c.functionCalls.length > 0) {
+          const responses = [];
+          for (const fc of c.functionCalls) {
             const res = await handleToolCall(fc.name, fc.args);
-            responses.push({ functionResponse: { id: fc.id, name: fc.name, response: { result: res } } });
+            responses.push({ 
+              functionResponse: { id: fc.id, name: fc.name, response: { result: res } } 
+            });
           }
           const nextStream = await chat.sendMessageStream({ message: { parts: responses } });
           await processStream(nextStream);
@@ -153,18 +134,26 @@ MCP経由で実際のGoogle Calendar/Gmail APIに接続し、実データを処�
       }
     };
 
-    await processStream(stream);
+    await processStream(streamResponse);
     onFinish();
-  } catch (e: any) { onError(e); }
+  } catch (e: any) { 
+    onError(e); 
+  }
 };
 
 export const generateSecretaryImage = async (prompt: string): Promise<string> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
-      contents: { parts: [{ text: `Professional portrait. ${prompt}` }] },
+      contents: { parts: [{ text: `Professional cinematic portrait of an executive assistant. ${prompt}` }] },
     });
     const part = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
     return part ? `data:image/png;base64,${part.inlineData.data}` : "";
   } catch (e) { return ""; }
+};
+
+export const getDashboardData = () => {
+  // 実機接続時は App.tsx 側のステートで管理するため、ダミーデータを返さず、空の構造を維持
+  return { events: [], emails: [] };
 };

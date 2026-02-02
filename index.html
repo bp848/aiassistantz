@@ -4,6 +4,24 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>クラウド社長室Z AIエージェント秘書</title>
+    
+    <!-- ESモジュールのインポート設定 -->
+    <script type="importmap">
+    {
+      "imports": {
+        "react": "https://esm.sh/react@^19.2.3",
+        "react/": "https://esm.sh/react@^19.2.3/",
+        "react-dom": "https://esm.sh/react-dom@^19.2.3",
+        "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+        "react-markdown": "https://esm.sh/react-markdown@^10.1.0",
+        "@google/genai": "https://esm.sh/@google/genai@^1.38.0",
+        "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.91.1",
+        "lucide-react": "https://esm.sh/lucide-react@^0.563.0"
+      }
+    }
+    </script>
+
+    <!-- スタイル設定 -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Inter:wght@300;400;500;600&family=Noto+Serif+JP:wght@400;700&display=swap" rel="stylesheet">
     <script>
@@ -16,12 +34,12 @@
             },
             colors: {
               'presidential-navy': '#0b1120',
-              'cyber-cyan': '#22d3ee',        /* Cyan-400 */
-              'cyber-cyan-light': '#67e8f9',  /* Cyan-300 */
-              'cyber-cyan-dark': '#0891b2',   /* Cyan-600 */
+              'cyber-cyan': '#22d3ee',
+              'cyber-cyan-light': '#67e8f9',
+              'cyber-cyan-dark': '#0891b2',
               'cyber-slate': '#94a3b8',
-              'presidential-gold': '#22d3ee', /* Fallback alias to prevent breaks */
-              'presidential-gold-light': '#67e8f9', /* Fallback alias */
+              'presidential-gold': '#22d3ee',
+              'presidential-gold-light': '#67e8f9',
             },
             animation: {
               'fadeIn': 'fadeIn 0.5s ease-out',
@@ -47,8 +65,9 @@
         background-color: #0b1120;
         color: #e2e8f0;
         font-family: 'Inter', sans-serif;
+        margin: 0;
       }
-      /* Custom scrollbar */
+      /* カスタムスクロールバー */
       ::-webkit-scrollbar {
         width: 6px;
       }
@@ -62,10 +81,14 @@
       ::-webkit-scrollbar-thumb:hover {
         background: #22d3ee; 
       }
+      #root {
+        height: 100vh;
+      }
     </style>
   </head>
   <body>
     <div id="root"></div>
+    <!-- アプリケーション本体の読み込み -->
     <script type="module" src="./index.tsx"></script>
   </body>
 </html>
