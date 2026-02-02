@@ -51,7 +51,7 @@ serve(async (req) => {
         client_secret: Deno.env.get('VITE_GOOGLE_CLIENT_SECRET')!,
         code: code,
         grant_type: 'authorization_code',
-        redirect_uri: 'https://assistant.b-p.co.jp/auth/callback',
+        redirect_uri: 'https://assistant.b-p.co.jp/#/auth/callback',
       }),
     });
 

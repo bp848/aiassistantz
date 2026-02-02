@@ -33,7 +33,7 @@ serve(async (req) => {
     
     const params = {
       client_id: Deno.env.get('VITE_GOOGLE_CLIENT_ID')!,
-      redirect_uri: 'https://assistant.b-p.co.jp/auth/callback',
+      redirect_uri: 'https://assistant.b-p.co.jp/#/auth/callback',
       response_type: 'code',
       scope: Deno.env.get('VITE_GOOGLE_SCOPES')!,
       state: btoa(JSON.stringify({ tenantId, returnUrl })),
