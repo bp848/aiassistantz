@@ -1,6 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Session } from '@supabase/supabase-js';
 import { Send, Menu, ShieldCheck, Paperclip, Headset, Mic, FolderOpen, Clock, AlertTriangle } from 'lucide-react';
 import { Message, Sender, AgentMode, GroundingSource, SecretaryProfile, UserProfile, StoredDocument, AuthState, AuthProvider } from './types';
 import { streamGeminiResponse, initializeUserContext } from './services/geminiService';
@@ -18,10 +19,13 @@ import AuthScreen from './components/AuthScreen';
 import Integration from './components/Integration';
 import AuthCallback from './components/AuthCallback';
 import Dashboard from './components/Dashboard';
+import { supabase } from './services/supabaseClient';
 
 const App: React.FC = () => {
   const [auth, setAuth] = useState<AuthState>({ isLoggedIn: false, user: null });
   const [setupStep, setSetupStep] = useState<'auth' | 'integration' | 'onboarding' | 'main'>('auth');
+  const [session, setSession] = useState<Session | null>(null);
+  const [authReady, setAuthReady] = useState(false);
 
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [secretaryProfile, setSecretaryProfile] = useState<SecretaryProfile | null>(null);
@@ -40,6 +44,26 @@ const App: React.FC = () => {
   const [sessionId, setSessionId] = useState<string | undefined>(undefined);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  useEffect(() => {
+    const loadSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      setSession(data.session);
+      setAuthReady(true);
+    };
+
+    loadSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
 
   // Derive last AI message for the WorkspacePanel
   // Fix: Line 176 error - Cannot find name 'lastAiMessage'
@@ -110,13 +134,24 @@ const App: React.FC = () => {
     }, undefined, storedDocuments);
   }
 
+  if (!authReady) {
+    return (
+      <div className="min-h-screen bg-[#0b1120] flex items-center justify-center text-white">
+        認証状態を確認中…
+      </div>
+    );
+  }
+
   return (
     <Router>
       <Routes>
         <Route path="/" element={<AuthScreen onAuthComplete={onAuthComplete} />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/integration" element={<Integration />} />
-        <Route path="/dashboard" element={<Dashboard />} />
+        <Route
+          path="/dashboard"
+          element={session ? <Dashboard /> : <Navigate to="/" replace />}
+        />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
