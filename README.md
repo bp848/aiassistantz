@@ -21,3 +21,16 @@ View your app in AI Studio: https://ai.studio/apps/drive/11YfeiAFYMJtyb_4ipEC8tl
 3. Supabase: Authentication で **Google プロバイダー** を有効化し、**Site URL** にアプリのURL（例: `http://localhost:3000`）を設定
 4. Run the app:
    `npm run dev`
+
+## Deploy (Vercel)
+
+本番では `.env.local` は使われません。**Vercel の環境変数**を設定してください。
+
+1. Vercel Dashboard → プロジェクトを選択 → **Settings** → **Environment Variables**
+2. 以下を追加（Production / Preview / Development にチェック）:
+   - `GEMINI_API_KEY` … Google AI Studio の API キー
+   - `VITE_GOOGLE_CLIENT_ID` … Google OAuth クライアントID
+   - `REACT_APP_SUPABASE_URL` … Supabase プロジェクト URL（任意）
+   - `REACT_APP_SUPABASE_ANON_KEY` … Supabase Anon Key（任意）
+   - `VITE_MCP_SERVER_URL` … MCP Server URL（任意）
+3. **Save** 後、**Redeploy**（Deployments → ⋮ → Redeploy）で再ビルドする

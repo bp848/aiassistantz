@@ -46,10 +46,15 @@ export const streamGeminiResponse = async (
   attachment?: { mimeType: string; data: string },
   knowledgeBase: StoredDocument[] = []
 ) => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  
+  const apiKey = process.env.API_KEY?.trim();
+  if (!apiKey) {
+    onError(new Error('GEMINI_API_KEY が設定されていません。.env.local に Google AI Studio の API キーを設定し、開発サーバーを再起動してください。'));
+    return;
+  }
+  const ai = new GoogleGenAI({ apiKey });
+
   try {
-    const modelName = mode === AgentMode.ADVISOR ? 'gemini-3-pro-preview' : 'gemini-3-flash-preview';
+    const modelName = mode === AgentMode.ADVISOR ? 'gemini-2.5-pro' : 'gemini-2.5-flash';
     
     const tools = [{ 
       functionDeclarations: [

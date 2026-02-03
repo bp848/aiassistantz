@@ -36,6 +36,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthComplete }) => {
   const [authSuccess, setAuthSuccess] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!supabase) return;
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
@@ -47,6 +48,10 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthComplete }) => {
   }, [onAuthComplete]);
 
   const handleGoogleLogin = async () => {
+    if (!supabase) {
+      setAuthError('Supabase の環境変数（VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY）が設定されていません');
+      return;
+    }
     setLoading('google');
     setAuthError(null);
     setAuthSuccess(null);
@@ -59,6 +64,10 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthComplete }) => {
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!supabase) {
+      setAuthError('Supabase の環境変数が設定されていません');
+      return;
+    }
     setLoading('email');
     setAuthError(null);
     setAuthSuccess(null);
@@ -238,6 +247,10 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthComplete }) => {
                 type="button"
                 className="text-[10px] text-cyber-slate hover:text-cyber-cyan transition-colors font-bold uppercase tracking-widest"
                 onClick={async () => {
+                  if (!supabase) {
+                    setAuthError('Supabase の環境変数が設定されていません');
+                    return;
+                  }
                   if (!email.trim()) {
                     setAuthError('メールアドレスを入力してください');
                     return;

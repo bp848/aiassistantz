@@ -50,7 +50,7 @@ const App: React.FC = () => {
         setIsProfileLoading(false);
         return;
       }
-      const { data: { session } } = await supabase.auth.getSession();
+      const session = supabase ? (await supabase.auth.getSession()).data.session : null;
       if (session?.user) {
         const u = session.user;
         const name = u.user_metadata?.full_name || u.user_metadata?.name || u.email?.split('@')[0] || 'ユーザー';
