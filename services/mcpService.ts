@@ -23,10 +23,10 @@ class MCPService {
   
   /**
    * 接続先のMCPサーバURL。
-   * 【デプロイ時の重要事項】
-   * 実際のブリッジサーバーのアドレスに書き換えてください。
+   * 環境変数 VITE_MCP_SERVER_URL で上書き可能（未設定時は Supabase MCP をデフォルト使用）。
    */
-  private serverUrl: string = "https://mcp-bridge.local/sse"; 
+  private serverUrl: string =
+    (import.meta as any).env?.VITE_MCP_SERVER_URL || "https://mcp.supabase.com/mcp?project_ref=frbdpmqxgtgnjeccpbub"; 
   
   private eventSource: EventSource | null = null;
   private postUrl: string | null = null;

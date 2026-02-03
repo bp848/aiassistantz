@@ -18,9 +18,9 @@ interface IntegrationSetupProps {
  * 5. 「認証情報」タブで「認証情報を作成 > OAuth クライアント ID」を選択。
  * 6. 種類を「ウェブ アプリケーション」に設定。
  * 7. 「承認済みのリダイレクト URI」に現在のサイトURL（例: http://localhost:3000）を正確に追加する。
- * 8. 取得した 【クライアント ID】 を下の CLIENT_ID 変数にコピペする！
+ * 8. 取得した 【クライアント ID】 を .env.local の VITE_GOOGLE_CLIENT_ID に設定する。
  */
-const CLIENT_ID = '934575841639-668j6v6v6v6v6v6v6v6v6v6v6v.apps.googleusercontent.com'; // ← ここを書き換えてください
+const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '';
 
 // AI秘書が社長に代わって操作するために必要な権限一覧
 const SCOPES = [
@@ -96,17 +96,22 @@ const IntegrationSetup: React.FC<IntegrationSetupProps> = ({ onComplete }) => {
    * 【認証開始】Google OAuth 2.0 画面へユーザーをリダイレクトさせます。
    */
   const startOAuthFlow = () => {
+    if (!CLIENT_ID?.trim()) {
+      setStatus('error');
+      setErrorMsg('Google OAuth のクライアントIDが設定されていません。.env.local に VITE_GOOGLE_CLIENT_ID を設定してください。');
+      return;
+    }
     setStatus('authorizing');
-    
+
     // 現在のサイトURLを戻り先として指定
     const redirectUri = window.location.origin + window.location.pathname;
-    
+
     /**
      * Google 認証エンドポイントへの遷移
      * stateパラメータでセッション整合性を維持します。
      */
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=${encodeURIComponent(SCOPES)}&include_granted_scopes=true&prompt=consent&state=mcp_auth_v1`;
-    
+
     console.log("[AUTH-FLOW] Redirecting to Google Login screen...");
     window.location.href = authUrl;
   };
@@ -225,7 +230,7 @@ const IntegrationSetup: React.FC<IntegrationSetupProps> = ({ onComplete }) => {
                    <li><a href="https://console.cloud.google.com/" target="_blank" className="text-cyber-cyan underline font-bold">Cloud Console</a> で「ウェブ アプリ」の OAuth ID を作成。</li>
                    <li>「承認済みのリダイレクト URI」に <code>{window.location.origin}</code> を正確に追加。</li>
                    <li>Gmail API と Calendar API を「ライブラリ」から有効化。</li>
-                   <li>本コンポーネントの <code>CLIENT_ID</code> 変数を、発行された ID に書き換える。</li>
+                   <li><code>.env.local</code> に <code>VITE_GOOGLE_CLIENT_ID</code> を発行されたクライアントIDで設定する。</li>
                    <li>外部MCPサーバーが動作し、アクセストークンを受け入れ可能であることを確認。</li>
                  </ol>
                </div>
