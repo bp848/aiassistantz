@@ -49,14 +49,25 @@
 
 ## 4. インフラ・バックエンド準備（Supabase）
 
+### DB がなくても動くか？
+
+**はい、テーブルがなくてもアプリは動作します。**
+
+- **ユーザー・秘書プロフィール** … まず `localStorage` を参照し、なければ Supabase を参照。テーブルがなくても `localStorage` で保存・取得するため問題なし。Supabase の保存・取得が失敗しても警告ログのみで落ちない。
+- **資料アップロード（documents）** … Supabase Storage のバケットがなくても、エラー時に「ローカルモック」（メタデータのみ）や `localStorage` にフォールバックするため動作する。
+
+本番で「複数端末で同じプロフィール」「資料をクラウドに永続化」したい場合は、以下でテーブル・バケットを作成するとよい。
+
 ### 4.1 テーブル
 
-- **テーブル名:** `user_settings`
-- **想定カラム:**
-  - `id` (text, PK) … 例: `'current_user'`
-  - `profile` (jsonb) … ユーザープロフィール
-  - `secretary_profile` (jsonb) … 秘書プロフィール
-  - `updated_at` (timestamptz) … 任意
+スキーマ定義は `supabase/schema.sql` を参照。Supabase Dashboard の SQL Editor で実行するか、`supabase db push` で適用する。
+
+- **user_settings** … ユーザー・秘書プロフィール（Supabase Auth 連携）
+  - `user_id` (uuid, PK, FK → auth.users(id))
+  - `profile` (jsonb), `secretary_profile` (jsonb), `settings` (jsonb), `updated_at`
+  - アプリは `supabase.auth.getSession()` で取得した `user.id` を `user_id` として使用。セッションがないときは localStorage のみ。
+- **line_messages** … LINE メッセージ用（将来の LINE 連携）
+- **line_users** … LINE ユーザー用（将来の LINE 連携）
 
 ### 4.2 ストレージ
 

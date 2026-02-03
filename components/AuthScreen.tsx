@@ -1,10 +1,29 @@
 
-import React, { useState } from 'react';
-import { ShieldCheck, Mail, Lock, User, ArrowRight, Loader2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ShieldCheck, Mail, Lock, User, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
 import { AuthProvider } from '../types';
+import { supabase } from '../services/supabaseClient';
+import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 interface AuthScreenProps {
   onAuthComplete: (name: string, email: string, provider: AuthProvider, avatar?: string) => void;
+}
+
+function mapSupabaseUserToProfile(user: SupabaseUser): { name: string; email: string; provider: AuthProvider; avatar?: string } {
+  const provider = (user.app_metadata?.provider as string) || 'email';
+  const authProvider: AuthProvider =
+    provider === 'google' ? 'google' : provider === 'line' ? 'line' : 'email';
+  const name =
+    user.user_metadata?.full_name ||
+    user.user_metadata?.name ||
+    user.email?.split('@')[0] ||
+    'ユーザー';
+  const email = user.email ?? '';
+  const avatar =
+    user.user_metadata?.picture ||
+    user.user_metadata?.avatar_url ||
+    undefined;
+  return { name, email, provider: authProvider, avatar };
 }
 
 const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthComplete }) => {
@@ -13,31 +32,65 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthComplete }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authSuccess, setAuthSuccess] = useState<string | null>(null);
 
-  const handleSocialLogin = (provider: AuthProvider) => {
-    setLoading(provider);
-    setTimeout(() => {
-      const mockName = provider === 'google' ? '橋本 唱市 (Google)' : '橋本 唱市 (LINE)';
-      const mockEmail = provider === 'google' ? 'shoichi.h@gmail.com' : 'line_user_123@line.me';
-      const mockAvatar = provider === 'line' ? 'https://api.dicebear.com/7.x/avataaars/svg?seed=line' : undefined;
-      
-      onAuthComplete(mockName, mockEmail, provider, mockAvatar);
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const { name: n, email: e, provider: p, avatar: a } = mapSupabaseUserToProfile(session.user);
+        onAuthComplete(n, e, p, a);
+      }
+    };
+    checkSession();
+  }, [onAuthComplete]);
+
+  const handleGoogleLogin = async () => {
+    setLoading('google');
+    setAuthError(null);
+    setAuthSuccess(null);
+    const { error } = await supabase.auth.signInWithOAuth({ provider: 'google' });
+    if (error) {
+      setAuthError(error.message);
       setLoading(null);
-    }, 1500);
+    }
   };
 
-  const handleEmailSubmit = (e: React.FormEvent) => {
+  const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading('email');
-    setTimeout(() => {
-      onAuthComplete(name || '橋本 唱市', email || 'hashimoto@b-p.co.jp', 'email');
+    setAuthError(null);
+    setAuthSuccess(null);
+    try {
+      if (isLogin) {
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        if (data.user) {
+          const { name: n, email: e, provider: p, avatar: a } = mapSupabaseUserToProfile(data.user);
+          onAuthComplete(n, e, p, a);
+        }
+      } else {
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { data: { full_name: name || email.split('@')[0] } },
+        });
+        if (error) throw error;
+        if (data.user) {
+          const { name: n, email: e, provider: p, avatar: a } = mapSupabaseUserToProfile(data.user);
+          onAuthComplete(n, e, p, a);
+        }
+      }
+    } catch (err: any) {
+      setAuthError(err?.message ?? '認証に失敗しました');
+    } finally {
       setLoading(null);
-    }, 1000);
+    }
   };
 
   return (
     <div className="min-h-screen bg-[#0b1120] flex items-center justify-center p-6 relative overflow-hidden font-sans">
-      {/* Dynamic Background Elements */}
       <div className="absolute top-[-20%] right-[-10%] w-[60%] h-[60%] bg-cyber-cyan/10 blur-[120px] rounded-full animate-pulse-fast"></div>
       <div className="absolute bottom-[-20%] left-[-10%] w-[60%] h-[60%] bg-blue-900/20 blur-[120px] rounded-full"></div>
 
@@ -52,15 +105,26 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthComplete }) => {
         </div>
 
         <div className="bg-gray-900/40 backdrop-blur-xl border border-white/5 p-8 rounded-3xl shadow-2xl animate-fadeIn" style={{ animationDelay: '0.1s' }}>
-          
+          {authError && (
+            <div className="mb-6 p-4 bg-red-900/30 border border-red-500/50 rounded-2xl flex items-center gap-3 text-red-200 text-sm">
+              <AlertCircle size={18} />
+              {authError}
+            </div>
+          )}
+          {authSuccess && (
+            <div className="mb-6 p-4 bg-green-900/30 border border-green-500/50 rounded-2xl text-green-200 text-sm">
+              {authSuccess}
+            </div>
+          )}
+
           <div className="flex mb-8 bg-black/40 p-1 rounded-2xl border border-white/5">
-            <button 
+            <button
               onClick={() => setIsLogin(true)}
               className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all ${isLogin ? 'bg-gray-800 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}
             >
               ログイン
             </button>
-            <button 
+            <button
               onClick={() => setIsLogin(false)}
               className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all ${!isLogin ? 'bg-gray-800 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}
             >
@@ -68,10 +132,9 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthComplete }) => {
             </button>
           </div>
 
-          {/* Social Logins */}
           <div className="space-y-3 mb-8">
-            <button 
-              onClick={() => handleSocialLogin('google')}
+            <button
+              onClick={handleGoogleLogin}
               disabled={!!loading}
               className="w-full bg-white text-black font-bold py-4 rounded-2xl flex items-center justify-center gap-3 hover:bg-gray-100 transition-all active:scale-[0.98] shadow-lg disabled:opacity-50"
             >
@@ -88,19 +151,14 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthComplete }) => {
               Googleで{isLogin ? 'ログイン' : '新規登録'}
             </button>
 
-            <button 
-              onClick={() => handleSocialLogin('line')}
-              disabled={!!loading}
-              className="w-full bg-[#06C755] text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-3 hover:opacity-90 transition-all active:scale-[0.98] shadow-lg disabled:opacity-50"
+            <button
+              disabled
+              className="w-full bg-gray-800 text-gray-500 font-bold py-4 rounded-2xl flex items-center justify-center gap-3 cursor-not-allowed"
             >
-              {loading === 'line' ? (
-                <Loader2 className="animate-spin" size={20} />
-              ) : (
-                <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current">
-                   <path d="M24 10.3c0-4.6-4.7-8.3-10.5-8.3S3 5.7 3 10.3c0 4.1 3.7 7.5 8.7 8.2l-1.3 4.2c-.1.2.1.4.3.3l4.9-3.3c.3.1.5.1.8.1 5.8.1 10.6-3.6 10.6-8.2z"/>
-                </svg>
-              )}
-              LINEで{isLogin ? 'ログイン' : '新規登録'}
+              <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current opacity-60">
+                <path d="M24 10.3c0-4.6-4.7-8.3-10.5-8.3S3 5.7 3 10.3c0 4.1 3.7 7.5 8.7 8.2l-1.3 4.2c-.1.2.1.4.3.3l4.9-3.3c.3.1.5.1.8.1 5.8.1 10.6-3.6 10.6-8.2z" />
+              </svg>
+              LINE連携（準備中）
             </button>
           </div>
 
@@ -116,12 +174,12 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthComplete }) => {
                 <label className="text-[10px] text-cyber-slate font-bold uppercase tracking-wider ml-1">お名前</label>
                 <div className="relative group">
                   <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-cyber-cyan transition-colors" size={18} />
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="例: 橋本 唱市"
+                    placeholder="例: 山田 太郎"
                     className="w-full bg-black/40 border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white focus:outline-none focus:border-cyber-cyan/50 focus:bg-black/60 transition-all placeholder:text-gray-700"
                   />
                 </div>
@@ -132,8 +190,8 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthComplete }) => {
               <label className="text-[10px] text-cyber-slate font-bold uppercase tracking-wider ml-1">メールアドレス</label>
               <div className="relative group">
                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-cyber-cyan transition-colors" size={18} />
-                <input 
-                  type="email" 
+                <input
+                  type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -147,8 +205,8 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthComplete }) => {
               <label className="text-[10px] text-cyber-slate font-bold uppercase tracking-wider ml-1">パスワード</label>
               <div className="relative group">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-cyber-cyan transition-colors" size={18} />
-                <input 
-                  type="password" 
+                <input
+                  type="password"
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -158,7 +216,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthComplete }) => {
               </div>
             </div>
 
-            <button 
+            <button
               type="submit"
               disabled={!!loading}
               className="w-full bg-gradient-to-r from-cyber-cyan to-blue-600 text-white font-bold py-5 rounded-2xl hover:opacity-90 transition-all active:scale-[0.98] shadow-xl shadow-cyber-cyan/10 flex items-center justify-center gap-2 mt-4"
@@ -176,7 +234,25 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthComplete }) => {
 
           {isLogin && (
             <div className="mt-6 text-center">
-              <button className="text-[10px] text-cyber-slate hover:text-cyber-cyan transition-colors font-bold uppercase tracking-widest">
+              <button
+                type="button"
+                className="text-[10px] text-cyber-slate hover:text-cyber-cyan transition-colors font-bold uppercase tracking-widest"
+                onClick={async () => {
+                  if (!email.trim()) {
+                    setAuthError('メールアドレスを入力してください');
+                    return;
+                  }
+                  setAuthError(null);
+                  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                    redirectTo: `${window.location.origin}/`,
+                  });
+                  if (error) setAuthError(error.message);
+                  else {
+                    setAuthError(null);
+                    setAuthSuccess('リセット用メールを送信しました。メールをご確認ください。');
+                  }
+                }}
+              >
                 パスワードをお忘れですか？
               </button>
             </div>

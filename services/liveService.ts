@@ -62,7 +62,7 @@ export class LiveService {
                const buffer = await decodeAudioData(bytes, this.audioContext);
                this.playAudio(buffer);
                
-               // For visualization (simple mock using audio data amplitude)
+               // For visualization (audio amplitude)
                const visData = new Uint8Array(10); 
                onAudioData(visData); 
             }

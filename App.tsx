@@ -4,6 +4,7 @@ import { Send, Menu, ShieldCheck, Paperclip, Headset, Mic, FolderOpen, Clock, Al
 import { Message, Sender, AgentMode, GroundingSource, SecretaryProfile, UserProfile, StoredDocument, AuthState, AuthProvider } from './types';
 import { streamGeminiResponse, initializeUserContext } from './services/geminiService';
 import { getUserProfile } from './services/userService';
+import { supabase } from './services/supabaseClient';
 import ChatMessage from './components/ChatMessage';
 import ModeSelector from './components/ModeSelector';
 import WorkspacePanel from './components/WorkspacePanel';
@@ -46,6 +47,23 @@ const App: React.FC = () => {
         setSecretaryProfile(profile.secretary);
         initializeUserContext(profile.user.name);
         setSetupStep('main');
+        setIsProfileLoading(false);
+        return;
+      }
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const u = session.user;
+        const name = u.user_metadata?.full_name || u.user_metadata?.name || u.email?.split('@')[0] || 'ユーザー';
+        const email = u.email ?? '';
+        const provider = (u.app_metadata?.provider === 'google' ? 'google' : 'email') as AuthProvider;
+        const avatar = u.user_metadata?.picture || u.user_metadata?.avatar_url;
+        const newUser: UserProfile = { name, email, authProvider: provider, avatarUrl: avatar, isConnectedGoogle: provider === 'google' };
+        setAuth({ isLoggedIn: true, user: newUser });
+        setUserProfile(newUser);
+        setSecretaryProfile({ name: '秘書', tone: '丁寧' });
+        setSetupStep('integration');
+      } else {
+        setSetupStep('auth');
       }
       setIsProfileLoading(false);
     };

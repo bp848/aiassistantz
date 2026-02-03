@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Upload, FileText, Trash2, X, Database, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 import { StoredDocument } from '../types';
-import { uploadDocument, listDocuments, saveLocalDocuments } from '../services/documentStore';
+import { uploadDocument, listDocuments } from '../services/documentStore';
 
 interface FileWarehouseProps {
   onClose: () => void;
@@ -39,7 +39,6 @@ const FileWarehouse: React.FC<FileWarehouseProps> = ({ onClose, onUpdateDocument
 
     const updated = [...newDocs, ...documents];
     setDocuments(updated);
-    saveLocalDocuments(updated);
     onUpdateDocuments(updated);
     setIsUploading(false);
   };
@@ -56,7 +55,6 @@ const FileWarehouse: React.FC<FileWarehouseProps> = ({ onClose, onUpdateDocument
   const handleDelete = (id: string) => {
     const updated = documents.filter(d => d.id !== id);
     setDocuments(updated);
-    saveLocalDocuments(updated);
     onUpdateDocuments(updated);
   };
 
