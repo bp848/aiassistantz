@@ -123,31 +123,66 @@ export const streamGeminiResponse = async (
       parts.push({ inlineData: { mimeType: attachment.mimeType, data: attachment.data } });
     }
 
-    let streamResponse = await chat.sendMessageStream({ message: { parts } });
+    // #region agent log
+    const _log = (loc: string, msg: string, data: Record<string, unknown>, hypothesisId: string) => {
+      const payload = { location: loc, message: msg, data, timestamp: Date.now(), sessionId: 'debug-session', runId: 'debug-run', hypothesisId };
+      fetch('http://127.0.0.1:7243/ingest/4a2ccbb4-5e92-40b2-81b8-7a683989d9bc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).catch(() => {});
+      try { console.log('[DEBUG]', JSON.stringify(payload)); } catch (_) {}
+    };
+    // #endregion
 
-    const processStream = async (stream: any) => {
-      for await (const chunk of stream) {
-        const c = chunk as GenerateContentResponse;
-        if (c.text) onChunk(c.text, c.candidates?.[0]?.groundingMetadata);
-        
-        if (c.functionCalls && c.functionCalls.length > 0) {
-          const responses = [];
-          for (const fc of c.functionCalls) {
-            const res = await handleToolCall(fc.name, fc.args);
-            responses.push({ 
-              functionResponse: { id: fc.id, name: fc.name, response: { result: res } } 
-            });
-          }
-          const nextStream = await chat.sendMessageStream({ message: { parts: responses } });
-          await processStream(nextStream);
-        }
+    // 初回はストリームを使わず sendMessage で一括応答 → function call の「直後」に関数応答を送る（400 回避）
+    const firstResponse = await chat.sendMessage({ message: { parts } });
+    // #region agent log
+    _log('geminiService.ts', 'first sendMessage response', { hasText: !!firstResponse.text, fcCount: firstResponse.functionCalls?.length ?? 0 }, 'H1');
+    // #endregion
+
+    const sendMessageLoop = async (response: any): Promise<void> => {
+      if (!response.functionCalls?.length) return;
+      const responseParts = [];
+      for (const fc of response.functionCalls) {
+        const res = await handleToolCall(fc.name, fc.args ?? {});
+        responseParts.push({
+          functionResponse: { id: fc.id, name: fc.name, response: { result: res } }
+        });
+      }
+      const nextResponse = await chat.sendMessage({ message: { parts: responseParts } });
+      if (nextResponse.text) onChunk(nextResponse.text, (nextResponse as any).candidates?.[0]?.groundingMetadata);
+      if (nextResponse.functionCalls && nextResponse.functionCalls.length > 0) {
+        await sendMessageLoop(nextResponse);
       }
     };
 
-    await processStream(streamResponse);
+    if (firstResponse.functionCalls && firstResponse.functionCalls.length > 0) {
+      await sendMessageLoop(firstResponse);
+    } else if (firstResponse.text) {
+      onChunk(firstResponse.text, (firstResponse as any).candidates?.[0]?.groundingMetadata);
+    }
     onFinish();
-  } catch (e: any) { 
-    onError(e); 
+  } catch (e: any) {
+    // #region agent log
+    const errMsg = e?.message ?? e?.error?.message ?? String(e);
+    const errPayload = { location: 'geminiService.ts:catch', message: 'streamGeminiResponse error', data: { errorSnippet: errMsg.slice(0, 200), has400: errMsg.includes('400') || errMsg.includes('function response turn') }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'debug-run', hypothesisId: 'H1' };
+    fetch('http://127.0.0.1:7243/ingest/4a2ccbb4-5e92-40b2-81b8-7a683989d9bc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(errPayload) }).catch(() => {});
+    try { console.log('[DEBUG]', JSON.stringify(errPayload)); } catch (_) {}
+    // #endregion
+    const msg = errMsg;
+    const is401 =
+      msg.includes('401') ||
+      msg.includes('UNAUTHENTICATED') ||
+      msg.includes('API keys are not supported') ||
+      msg.includes('OAuth2 access token') ||
+      msg.includes('CREDENTIALS_MISSING');
+    if (is401) {
+      onError(new Error(
+        'Gemini API の認証に失敗しました（401）。必ず Google AI Studio で発行した API キーを使ってください。' +
+        ' Google Cloud Console のキーは OAuth 前提のため使えません。' +
+        ' https://aistudio.google.com/apikey で「Create API key」→ 新しいプロジェクトでキーを発行し、' +
+        ' ローカルは .env.local の GEMINI_API_KEY、本番は Vercel の環境変数 GEMINI_API_KEY に設定して Redeploy してください。'
+      ));
+    } else {
+      onError(e);
+    }
   }
 };
 

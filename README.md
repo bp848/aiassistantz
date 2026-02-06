@@ -28,11 +28,12 @@ View your app in AI Studio: https://ai.studio/apps/drive/11YfeiAFYMJtyb_4ipEC8tl
 
 1. Vercel Dashboard → プロジェクトを選択 → **Settings** → **Environment Variables**
 2. 以下を追加（Production / Preview / Development にチェック）:
-   - `GEMINI_API_KEY` … Google AI Studio の API キー
+   - `GEMINI_API_KEY` … **Google AI Studio**（https://aistudio.google.com/apikey）で「Create API key」から発行したキー（Cloud Console のキーは 401 になります）
    - `VITE_GOOGLE_CLIENT_ID` … Google OAuth クライアントID
    - `REACT_APP_SUPABASE_URL` … Supabase プロジェクト URL（任意）
    - `REACT_APP_SUPABASE_ANON_KEY` … Supabase Anon Key（任意）
-   - `VITE_MCP_SERVER_URL` … MCP Server URL（任意）
+   - `VITE_MCP_SERVER_URL` … 未設定時は同一オリジン `/api/mcp-sse` を使用（CORS 回避）
+   - `MCP_UPSTREAM_URL` … **本番で MCP を使う場合** Supabase MCP の URL（例: `https://mcp.supabase.com/mcp?project_ref=xxx`）。プロキシがこの URL に接続する
 3. **Save** 後、**Redeploy**（Deployments → ⋮ → Redeploy）で再ビルドする
 
 ## セキュリティ

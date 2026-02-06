@@ -23,10 +23,17 @@ class MCPService {
   
   /**
    * 接続先のMCPサーバURL。
-   * 環境変数 VITE_MCP_SERVER_URL で上書き可能（未設定時は Supabase MCP をデフォルト使用）。
+   * 本番では必ず同一オリジンの /api/mcp-sse プロキシを使い CORS を回避（VITE_MCP_SERVER_URL より優先）。
    */
-  private serverUrl: string =
-    (import.meta as any).env?.VITE_MCP_SERVER_URL || "https://mcp.supabase.com/mcp?project_ref=frbdpmqxgtgnjeccpbub"; 
+  private get serverUrl(): string {
+    const origin = typeof window !== 'undefined' && window.location?.origin;
+    if (origin && !origin.startsWith('http://localhost') && !origin.startsWith('http://127.0.0.1')) {
+      return `${origin}/api/mcp-sse`;
+    }
+    const envUrl = (import.meta as any).env?.VITE_MCP_SERVER_URL;
+    if (envUrl) return envUrl;
+    return "https://mcp.supabase.com/mcp?project_ref=frbdpmqxgtgnjeccpbub";
+  } 
   
   private eventSource: EventSource | null = null;
   private postUrl: string | null = null;
@@ -63,7 +70,8 @@ class MCPService {
     if (this.isConnected && this.eventSource) return true;
     
     return new Promise((resolve, reject) => {
-      console.log("[MCP-SYSTEM] Initiating SSE transport connection...");
+      const usingProxy = typeof window !== 'undefined' && this.serverUrl.startsWith(window.location?.origin ?? '');
+      console.log("[MCP-SYSTEM] Initiating SSE transport connection...", usingProxy ? "(proxy)" : "(direct)");
       
       try {
         /**
