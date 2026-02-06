@@ -48,7 +48,12 @@ export const streamGeminiResponse = async (
 ) => {
   const apiKey = process.env.API_KEY?.trim();
   if (!apiKey) {
-    onError(new Error('GEMINI_API_KEY が設定されていません。.env.local に Google AI Studio の API キーを設定し、開発サーバーを再起動してください。'));
+    const isProd = typeof window !== 'undefined' && !/localhost|127\.0\.0\.1/.test(window.location?.host ?? '');
+    onError(new Error(
+      isProd
+        ? 'GEMINI_API_KEY が設定されていません。Vercel → Settings → Environment Variables に追加し、Redeploy してください。'
+        : 'GEMINI_API_KEY が設定されていません。.env.local に Google AI Studio の API キーを設定し、開発サーバーを再起動してください。'
+    ));
     return;
   }
   const ai = new GoogleGenAI({ apiKey });
@@ -147,7 +152,9 @@ export const streamGeminiResponse = async (
 };
 
 export const generateSecretaryImage = async (prompt: string): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const apiKey = process.env.API_KEY?.trim();
+  if (!apiKey) return "";
+  const ai = new GoogleGenAI({ apiKey });
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',

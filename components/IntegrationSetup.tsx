@@ -66,7 +66,6 @@ const IntegrationSetup: React.FC<IntegrationSetupProps> = ({ onComplete }) => {
         window.history.replaceState(null, '', window.location.pathname);
         
         try {
-          console.log("[AUTH-FLOW] Access token acquired. Handshaking with MCP server...");
           
           /**
            * 【連携の核心】取得したトークンを MCP サービスに設定します。

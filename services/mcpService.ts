@@ -49,7 +49,6 @@ class MCPService {
    */
   public setAuth(token: string) {
     this.authToken = token;
-    console.log("[MCP-SYSTEM] Authentication token successfully configured.");
     
     // 既存の接続がある場合は一度リセットし、新しいトークンで再接続可能にします。
     if (this.isConnected) {

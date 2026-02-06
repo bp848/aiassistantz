@@ -15,7 +15,7 @@ View your app in AI Studio: https://ai.studio/apps/drive/11YfeiAFYMJtyb_4ipEC8tl
 
 1. Install dependencies:
    `npm install`
-2. Set environment variables in [.env.local](.env.local):
+2. Copy [.env.local.example](.env.local.example) to `.env.local` and set values. **Never commit `.env.local`** (it is in .gitignore).
    - `GEMINI_API_KEY` … Gemini API key
    - `VITE_GOOGLE_CLIENT_ID` … Google OAuth クライアントID（ログイン用）
 3. Supabase: Authentication で **Google プロバイダー** を有効化し、**Site URL** にアプリのURL（例: `http://localhost:3000`）を設定
@@ -34,3 +34,8 @@ View your app in AI Studio: https://ai.studio/apps/drive/11YfeiAFYMJtyb_4ipEC8tl
    - `REACT_APP_SUPABASE_ANON_KEY` … Supabase Anon Key（任意）
    - `VITE_MCP_SERVER_URL` … MCP Server URL（任意）
 3. **Save** 後、**Redeploy**（Deployments → ⋮ → Redeploy）で再ビルドする
+
+## セキュリティ
+
+- **API キー・シークレットはリポジトリに含めない。** `.env.local` は .gitignore で除外されている。誤ってコミットした場合はキーを再発行すること。
+- 本番ビルドでは環境変数がクライアントバンドルに埋め込まれる。厳密な秘匿が必要な場合はバックエンド経由のプロキイを検討すること。
