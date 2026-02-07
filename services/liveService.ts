@@ -2,7 +2,7 @@
 import { GoogleGenAI, Modality } from "@google/genai";
 import { arrayBufferToBase64, base64ToUint8Array, decodeAudioData, float32ToInt16 } from "./audioUtils";
 
-const API_KEY = process.env.API_KEY?.trim() ?? '';
+const API_KEY = process.env.API_KEY || '';
 // Use the recommended model for real-time conversation tasks
 const MODEL_NAME = 'gemini-2.5-flash-native-audio-preview-12-2025';
 
@@ -17,16 +17,11 @@ export class LiveService {
   private activeSources: Set<AudioBufferSourceNode> = new Set();
 
   constructor(apiKey: string = API_KEY) {
-    this.client = new GoogleGenAI({ apiKey: apiKey || API_KEY });
+    this.client = new GoogleGenAI({ apiKey });
   }
 
   async connect(systemInstructionText: string, onAudioData: (visData: Uint8Array) => void, onClose: () => void) {
     if (this.isConnected) return;
-    if (!API_KEY) {
-      console.warn('[LiveService] GEMINI_API_KEY が未設定のため接続をスキップします');
-      onClose();
-      return;
-    }
 
     this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
     
@@ -67,7 +62,7 @@ export class LiveService {
                const buffer = await decodeAudioData(bytes, this.audioContext);
                this.playAudio(buffer);
                
-               // For visualization (audio amplitude)
+               // For visualization (simple mock using audio data amplitude)
                const visData = new Uint8Array(10); 
                onAudioData(visData); 
             }

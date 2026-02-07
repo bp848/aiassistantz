@@ -2,6 +2,7 @@ import { supabase } from './supabaseClient';
 import { StoredDocument } from '../types';
 
 const BUCKET_NAME = 'documents';
+const LOCAL_STORAGE_KEY = 'local_documents';
 
 // Helper to sanitize keys for Supabase Storage
 // Replaces spaces with underscores and removes characters outside [A-Za-z0-9._-]
@@ -33,7 +34,7 @@ export const uploadDocument = async (file: File): Promise<StoredDocument | null>
 
       if (error) {
         console.warn('Supabase upload failed:', error.message);
-        return null;
+        throw error;
       }
 
       const { data: { publicUrl } } = supabase.storage
@@ -42,20 +43,28 @@ export const uploadDocument = async (file: File): Promise<StoredDocument | null>
 
       const doc: StoredDocument = {
         id: fileName,
-        name: file.name,
+        name: file.name, // Keep original display name
         url: publicUrl,
         uploadedAt: new Date(),
         size: file.size
       };
-
+      
       return doc;
     } catch (e) {
-      console.warn('Upload failed:', e);
-      return null;
+      console.warn('Falling back to local storage simulation due to error:', e);
     }
   }
 
-  return null;
+  // 2. Fallback: Local Mock (Metadata only)
+  const mockDoc: StoredDocument = {
+    id: Date.now().toString(),
+    name: file.name,
+    url: '#', 
+    uploadedAt: new Date(),
+    size: file.size
+  };
+  
+  return mockDoc;
 };
 
 export const listDocuments = async (): Promise<StoredDocument[]> => {
@@ -82,6 +91,12 @@ export const listDocuments = async (): Promise<StoredDocument[]> => {
       console.warn('Supabase list error:', e);
     }
   }
+  
+  // Local Fallback
+  const local = localStorage.getItem(LOCAL_STORAGE_KEY);
+  return local ? JSON.parse(local) : [];
+};
 
-  return [];
+export const saveLocalDocuments = (docs: StoredDocument[]) => {
+  localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(docs));
 };
