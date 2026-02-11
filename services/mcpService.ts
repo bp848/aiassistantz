@@ -1,13 +1,9 @@
 
+import { GoogleGenAI } from "@google/genai";
+
 /**
- * ==========================================
- * MCP Service Bridge (Google Workspace Sync)
- * ==========================================
- * このサービスは、Google Workspaceの実機データにアクセスするための
- * MCP (Model Context Protocol) サーバーとの通信を統括します。
- * 
- * 認証には Google OAuth 2.0 アクセストークンを使用し、
- * 各リクエストの Authorization ヘッダーに付与します。
+ * MCP Service Bridge
+ * Google Workspace (Gmail/Calendar) 実機操作用プロトコル
  */
 
 export interface MCPTool {
@@ -21,19 +17,8 @@ class MCPService {
   private isConnected: boolean = false;
   private authToken: string | null = null;
   
-  /**
-   * 接続先のMCPサーバURL。
-   * 本番では必ず同一オリジンの /api/mcp-sse プロキシを使い CORS を回避（VITE_MCP_SERVER_URL より優先）。
-   */
-  private get serverUrl(): string {
-    const origin = typeof window !== 'undefined' && window.location?.origin;
-    if (origin && !origin.startsWith('http://localhost') && !origin.startsWith('http://127.0.0.1')) {
-      return `${origin}/api/mcp-sse`;
-    }
-    const envUrl = (import.meta as any).env?.VITE_MCP_SERVER_URL;
-    if (envUrl) return envUrl;
-    return "https://mcp.supabase.com/mcp?project_ref=frbdpmqxgtgnjeccpbub";
-  } 
+  // デプロイしたMCPサーバーのSSEエンドポイントURL
+  private serverUrl: string = "https://mcp-bridge.local/sse"; 
   
   private eventSource: EventSource | null = null;
   private postUrl: string | null = null;
@@ -49,91 +34,48 @@ class MCPService {
     return MCPService.instance;
   }
 
-  /**
-   * 【認証トークンの設定】
-   * IntegrationSetup.tsx で取得した Google OAuth 2.0 トークンを受け取ります。
-   * これにより、以降のすべての実機操作リクエストが「認証済み」となります。
-   */
   public setAuth(token: string) {
     this.authToken = token;
-    
-    // 既存の接続がある場合は一度リセットし、新しいトークンで再接続可能にします。
-    if (this.isConnected) {
-      this.disconnect();
-    }
+    if (this.isConnected) this.disconnect();
   }
 
-  /**
-   * MCPサーバへのSSE接続を確立します。
-   */
   async connect(): Promise<boolean> {
     if (this.isConnected && this.eventSource) return true;
     
     return new Promise((resolve, reject) => {
-      const usingProxy = typeof window !== 'undefined' && this.serverUrl.startsWith(window.location?.origin ?? '');
-      console.log("[MCP-SYSTEM] Initiating SSE transport connection...", usingProxy ? "(proxy)" : "(direct)");
-      
       try {
-        /**
-         * EventSource APIは標準でカスタムヘッダーを送信できません。
-         * そのため、多くのMCPブリッジ実装ではクエリパラメータ ?token=... で認証を行います。
-         */
         const connectionUrl = this.authToken 
           ? `${this.serverUrl}?token=${encodeURIComponent(this.authToken)}`
           : this.serverUrl;
           
         this.eventSource = new EventSource(connectionUrl);
 
-        this.eventSource.onopen = () => {
-          console.log("[MCP-SYSTEM] Transport channel opened.");
-        };
+        this.eventSource.onopen = () => console.log("[MCP] SSE Channel Open");
 
         this.eventSource.onerror = (err) => {
-          console.error("[MCP-SYSTEM] SSE Transport Error:", err);
           this.isConnected = false;
           this.eventSource?.close();
-          reject(new Error("同期サーバへの接続に失敗しました。認証情報の有効期限またはサーバURLを確認してください。"));
+          reject(new Error("MCPサーバに接続できません。認証切れかURLが誤っています。"));
         };
 
-        /**
-         * 'endpoint' イベント: MCPサーバがJSON-RPCリクエストを受け付ける POST URL を通知します。
-         */
         this.eventSource.addEventListener('endpoint', (event: MessageEvent) => {
           this.postUrl = event.data;
-          console.log("[MCP-SYSTEM] Received post-endpoint:", this.postUrl);
           this.isConnected = true;
-          
-          // ハンドシェイク（initialize）を実行して通信を開始します。
-          this.initializeMcp()
-            .then(() => {
-              console.log("[MCP-SYSTEM] Ready for real-world operations.");
-              resolve(true);
-            })
-            .catch(reject);
+          this.initializeMcp().then(() => resolve(true)).catch(reject);
         });
 
-        /**
-         * 受信した JSON-RPC レスポンスを処理し、保留中の Promise を解決します。
-         */
         this.eventSource.addEventListener('message', (event: MessageEvent) => {
           try {
             const response = JSON.parse(event.data);
             if (response.id !== undefined && this.pendingRequests.has(response.id)) {
               const { resolve: reqResolve, reject: reqReject } = this.pendingRequests.get(response.id)!;
               this.pendingRequests.delete(response.id);
-              
               if (response.error) reqReject(response.error);
               else reqResolve(response.result);
             }
-          } catch (e) {
-            console.warn("[MCP-SYSTEM] Non-JSON message received:", e);
-          }
+          } catch (e) { console.warn("[MCP] Message Parse Error", e); }
         });
-
-      } catch (e) {
-        console.error("[MCP-SYSTEM] Connection failed during setup:", e);
-        reject(e);
-      }
+      } catch (e) { reject(e); }
     });
   }
 
@@ -145,82 +87,53 @@ class MCPService {
     this.isConnected = false;
     this.postUrl = null;
     this.pendingRequests.clear();
-    console.log("[MCP-SYSTEM] Session disconnected.");
   }
 
   private async initializeMcp(): Promise<any> {
     return this.sendRequest("initialize", {
       protocolVersion: "2024-11-05",
       capabilities: { tools: {} },
-      clientInfo: { name: "Cloud-President-Z", version: "1.0.0" }
+      clientInfo: { name: "President-Z-Client", version: "1.0.0" }
     });
   }
 
-  /**
-   * 【JSON-RPCリクエスト送信】
-   * すべての POST リクエストのヘッダーに Bearer トークンを注入します。
-   */
   private async sendRequest(method: string, params: any): Promise<any> {
-    if (!this.isConnected || !this.postUrl) {
-      await this.connect();
-    }
+    if (!this.isConnected || !this.postUrl) await this.connect();
 
     const id = `rpc-${this.nextId++}`;
     const request = { jsonrpc: "2.0", id, method, params };
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     
-    // 【認証の核】Authorizationヘッダーを構築
-    const headers: Record<string, string> = { 
-      'Content-Type': 'application/json'
-    };
-    
-    if (this.authToken) {
-      headers['Authorization'] = `Bearer ${this.authToken}`;
-    }
+    if (this.authToken) headers['Authorization'] = `Bearer ${this.authToken}`;
 
     return new Promise((resolve, reject) => {
       this.pendingRequests.set(id, { resolve, reject });
-
       fetch(this.postUrl!, {
         method: 'POST',
         headers,
         body: JSON.stringify(request)
       }).catch(err => {
         this.pendingRequests.delete(id);
-        console.error(`[MCP-RPC] Failed to send ${method}:`, err);
         reject(err);
       });
     });
   }
 
-  /**
-   * 利用可能なツールの一覧をサーバから取得します。
-   */
   async listTools(): Promise<MCPTool[]> {
     const response = await this.sendRequest("tools/list", {});
     return response.tools || [];
   }
 
-  /**
-   * ツールを実行します（実機のカレンダー登録やメール検索など）。
-   */
   async callTool(toolName: string, args: any): Promise<any> {
     const response = await this.sendRequest("tools/call", {
       name: toolName,
       arguments: args
     });
-
     if (response && response.content) {
-      const textContent = response.content
-        .filter((part: any) => part.type === 'text')
-        .map((part: any) => part.text)
-        .join('\n');
-      try { return JSON.parse(textContent); } catch { return textContent; }
+      const text = response.content.filter((p: any) => p.type === 'text').map((p: any) => p.text).join('\n');
+      try { return JSON.parse(text); } catch { return text; }
     }
     return response;
-  }
-
-  get status() {
-    return this.isConnected ? 'connected' : 'disconnected';
   }
 }
 

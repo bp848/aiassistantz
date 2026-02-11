@@ -21,12 +21,69 @@
     }
     </script>
 
+    <!-- スタイル設定 -->
+    <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Inter:wght@300;400;500;600&family=Noto+Serif+JP:wght@400;700&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              serif: ['"Noto Serif JP"', 'Cinzel', 'serif'],
+              sans: ['Inter', 'sans-serif'],
+            },
+            colors: {
+              'presidential-navy': '#0b1120',
+              'cyber-cyan': '#22d3ee',
+              'cyber-cyan-light': '#67e8f9',
+              'cyber-cyan-dark': '#0891b2',
+              'cyber-slate': '#94a3b8',
+              'presidential-gold': '#22d3ee',
+              'presidential-gold-light': '#67e8f9',
+            },
+            animation: {
+              'fadeIn': 'fadeIn 0.5s ease-out',
+              'slideInRight': 'slideInRight 0.3s ease-out',
+              'pulse-fast': 'pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            },
+            keyframes: {
+              fadeIn: {
+                '0%': { opacity: '0', transform: 'translateY(10px)' },
+                '100%': { opacity: '1', transform: 'translateY(0)' },
+              },
+              slideInRight: {
+                '0%': { transform: 'translateX(100%)' },
+                '100%': { transform: 'translateX(0)' },
+              }
+            }
+          }
+        }
+      }
+    </script>
     <style>
-      /* フォールバック: JS/CSS 読み込み前でも真っ白にしない */
-      html, body { margin: 0; background: #0b1120; color: #e2e8f0; font-family: Inter, sans-serif; min-height: 100%; }
-      #root { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-      #root:empty::after { content: "読み込み中..."; color: #22d3ee; font-size: 14px; }
+      body {
+        background-color: #0b1120;
+        color: #e2e8f0;
+        font-family: 'Inter', sans-serif;
+        margin: 0;
+      }
+      /* カスタムスクロールバー */
+      ::-webkit-scrollbar {
+        width: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #0f172a; 
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #1e293b; 
+        border-radius: 3px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #22d3ee; 
+      }
+      #root {
+        height: 100vh;
+      }
     </style>
   </head>
   <body>

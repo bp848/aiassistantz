@@ -4,7 +4,6 @@ import { Send, Menu, ShieldCheck, Paperclip, Headset, Mic, FolderOpen, Clock, Al
 import { Message, Sender, AgentMode, GroundingSource, SecretaryProfile, UserProfile, StoredDocument, AuthState, AuthProvider } from './types';
 import { streamGeminiResponse, initializeUserContext } from './services/geminiService';
 import { getUserProfile } from './services/userService';
-import { supabase } from './services/supabaseClient';
 import ChatMessage from './components/ChatMessage';
 import ModeSelector from './components/ModeSelector';
 import WorkspacePanel from './components/WorkspacePanel';
@@ -47,23 +46,6 @@ const App: React.FC = () => {
         setSecretaryProfile(profile.secretary);
         initializeUserContext(profile.user.name);
         setSetupStep('main');
-        setIsProfileLoading(false);
-        return;
-      }
-      const session = supabase ? (await supabase.auth.getSession()).data.session : null;
-      if (session?.user) {
-        const u = session.user;
-        const name = u.user_metadata?.full_name || u.user_metadata?.name || u.email?.split('@')[0] || 'ユーザー';
-        const email = u.email ?? '';
-        const provider = (u.app_metadata?.provider === 'google' ? 'google' : 'email') as AuthProvider;
-        const avatar = u.user_metadata?.picture || u.user_metadata?.avatar_url;
-        const newUser: UserProfile = { name, email, authProvider: provider, avatarUrl: avatar, isConnectedGoogle: provider === 'google' };
-        setAuth({ isLoggedIn: true, user: newUser });
-        setUserProfile(newUser);
-        setSecretaryProfile({ name: '秘書', tone: '丁寧' });
-        setSetupStep('integration');
-      } else {
-        setSetupStep('auth');
       }
       setIsProfileLoading(false);
     };
@@ -95,15 +77,24 @@ const App: React.FC = () => {
     setMessages([]);
 
     const userName = (userProfile?.name || '社長') + '社長';
-    const greeting = `${userName}、おはようございます。ただいま Google Workspace への同期が完了しました。本日の予定と重要メールの要約から始めましょうか？`;
+    const greeting = `${userName}、おはようございます。準備が整いました。本日の予定と重要事項を確認いたします。`;
     
-    setMessages([{ 
+    const initialAiMessage: Message = { 
       id: 'welcome', 
       sender: Sender.AI, 
       text: greeting, 
       timestamp: new Date(), 
-      suggestedActions: ["本日の予定を一覧で表示", "緊急の未読メールを確認", "出張の手配状況を聞く"] 
-    }]);
+      suggestedActions: ["本日の予定を同期", "緊急メールの確認", "業界ニュースの要約"] 
+    };
+
+    setMessages([initialAiMessage]);
+    
+    // 能動的なアクション：予定を自動で聞きに行く（デモンストレーション）
+    if (selectedMode === AgentMode.SCHEDULE || selectedMode === AgentMode.SECRETARY) {
+      setTimeout(() => {
+        submitMessage("本日の予定を一覧で教えてください。");
+      }, 1000);
+    }
   };
 
   const submitMessage = async (text: string) => {
