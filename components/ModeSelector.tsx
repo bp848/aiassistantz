@@ -20,23 +20,26 @@ const ModeSelector: React.FC<ModeSelectorProps> = ({ currentMode, onModeChange, 
   ];
 
   return (
-    <div className="w-full flex overflow-x-auto gap-3 p-1 mb-2 no-scrollbar">
+    <div className="w-full flex overflow-x-auto gap-2 py-1 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent" role="tablist" aria-label="モード選択">
       {modes.map((mode) => {
         const Icon = mode.icon;
         const isActive = currentMode === mode.id;
         return (
           <button
             key={mode.id}
+            type="button"
+            role="tab"
+            aria-selected={isActive}
             onClick={() => onModeChange(mode.id)}
             disabled={disabled}
-            className={`flex-shrink-0 flex items-center gap-3 px-6 py-4 rounded-full transition-all whitespace-nowrap border ${
-              isActive 
-                ? 'bg-gray-800 border-gray-600 text-white' 
-                : 'bg-transparent border-gray-800 text-gray-500 hover:bg-gray-900'
+            className={`flex-shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-lg transition-all whitespace-nowrap text-sm font-medium ${
+              isActive
+                ? 'bg-cyber-cyan/20 text-cyber-cyan border border-cyber-cyan/40'
+                : 'bg-white/5 text-gray-400 border border-transparent hover:bg-white/10 hover:text-gray-300'
             } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
           >
-            <Icon size={24} />
-            <span className="text-base font-bold">{mode.label}</span>
+            <Icon size={18} />
+            <span>{mode.label}</span>
           </button>
         );
       })}

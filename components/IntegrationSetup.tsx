@@ -181,20 +181,32 @@ const IntegrationSetup: React.FC<IntegrationSetupProps> = ({ onComplete }) => {
                 </button>
               </div>
             ) : (
-              <button 
-                onClick={startOAuthFlow}
-                disabled={status !== 'idle'}
-                className="w-full bg-white text-black font-bold py-5 rounded-[1.5rem] hover:bg-cyber-cyan hover:text-white transition-all flex items-center justify-center gap-3 shadow-2xl active:scale-[0.98] disabled:opacity-50 text-sm uppercase tracking-widest"
-              >
-                {status === 'authorizing' || status === 'connecting' ? (
-                  <>
-                    <Loader2 size={20} className="animate-spin" />
-                    {status === 'authorizing' ? 'AUTHENTICATING...' : 'ESTABLISHING SYNC...'}
-                  </>
-                ) : (
-                  <>Workspace 連携を開始</>
+              <div className="space-y-4">
+                {status === 'idle' && (
+                  <div className="text-gray-400 text-sm space-y-2 mb-2">
+                    <p className="font-medium text-gray-300">手順</p>
+                    <ol className="list-decimal list-inside space-y-1 text-left">
+                      <li>下の「Workspace 連携を開始」を押す</li>
+                      <li>Google のログイン画面で許可する</li>
+                      <li>戻ってきたら「会話を始める」を押す</li>
+                    </ol>
+                  </div>
                 )}
-              </button>
+                <button 
+                  onClick={startOAuthFlow}
+                  disabled={status !== 'idle'}
+                  className="w-full bg-white text-black font-bold py-5 rounded-[1.5rem] hover:bg-cyber-cyan hover:text-white transition-all flex items-center justify-center gap-3 shadow-2xl active:scale-[0.98] disabled:opacity-50 text-sm uppercase tracking-widest"
+                >
+                  {status === 'authorizing' || status === 'connecting' ? (
+                    <>
+                      <Loader2 size={20} className="animate-spin" />
+                      {status === 'authorizing' ? 'AUTHENTICATING...' : 'ESTABLISHING SYNC...'}
+                    </>
+                  ) : (
+                    <>Workspace 連携を開始</>
+                  )}
+                </button>
+              </div>
             )}
           </div>
 
@@ -208,7 +220,7 @@ const IntegrationSetup: React.FC<IntegrationSetupProps> = ({ onComplete }) => {
                    : 'text-gray-700 bg-gray-900/40 cursor-not-allowed border border-white/5'
                }`}
              >
-               ダッシュボードへ進む
+               会話を始める
                <ArrowRight size={16} />
              </button>
 

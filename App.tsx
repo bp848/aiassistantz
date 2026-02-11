@@ -117,25 +117,38 @@ const App: React.FC = () => {
      setMessages(prev => [...prev, { id: aiMessageId, sender: Sender.AI, text: '', timestamp: new Date(), isThinking: true }]);
      
      let fullText = '';
-     await streamGeminiResponse(
-       [...messages, userMessage], 
-       text, 
-       mode, 
-       (textChunk) => {
-          fullText += textChunk;
-          setMessages(prev => prev.map(msg => msg.id === aiMessageId ? { ...msg, text: fullText, isThinking: false } : msg));
-        }, 
-        () => setIsLoading(false), 
-        (error) => {
-          setMessages(prev => prev.map(msg => msg.id === aiMessageId ? { ...msg, text: "同期エラー: " + error.message, isThinking: false } : msg));
-          setIsLoading(false);
-        }, 
-        undefined, 
-        storedDocuments
-     );
+     const stopLoading = () => setIsLoading(false);
+     const showError = (err: Error) => {
+       setMessages(prev => prev.map(msg => msg.id === aiMessageId ? { ...msg, text: "同期エラー: " + err.message, isThinking: false } : msg));
+       stopLoading();
+     };
+     try {
+       await streamGeminiResponse(
+         [...messages, userMessage],
+         text,
+         mode,
+         (textChunk) => {
+           fullText += textChunk;
+           setMessages(prev => prev.map(msg => msg.id === aiMessageId ? { ...msg, text: fullText, isThinking: false } : msg));
+         },
+         stopLoading,
+         showError,
+         undefined,
+         storedDocuments
+       );
+     } catch (e: any) {
+       showError(e instanceof Error ? e : new Error(String(e)));
+     }
   }
 
-  if (isProfileLoading) return <div className="h-screen bg-presidential-navy flex items-center justify-center text-cyber-cyan animate-pulse font-mono tracking-widest">SYSTEM INITIALIZING...</div>;
+  if (isProfileLoading) return (
+    <div
+      className="h-screen bg-presidential-navy flex items-center justify-center text-cyber-cyan animate-pulse font-mono tracking-widest"
+      style={{ minHeight: '100vh', background: '#0b1120', color: '#22d3ee', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'monospace' }}
+    >
+      SYSTEM INITIALIZING...
+    </div>
+  );
   if (setupStep === 'auth') return <AuthScreen onAuthComplete={onAuthComplete} />;
   if (setupStep === 'integration') return <IntegrationSetup onComplete={() => setSetupStep('onboarding')} />;
   if (setupStep === 'onboarding') return <Onboarding onComplete={(u, s) => { setUserProfile(u); setSecretaryProfile(s); setSetupStep('main'); }} />;
@@ -153,25 +166,19 @@ const App: React.FC = () => {
       
       <LiveCallOverlay isActive={isLiveCallActive} onEndCall={() => setIsLiveCallActive(false)} secretaryProfile={secretaryProfile} />
       
-      <header className="flex-shrink-0 bg-presidential-navy/80 backdrop-blur-md border-b border-white/5 h-20 flex items-center justify-between px-6 z-10">
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <ShieldCheck className="text-cyber-cyan" size={32} />
-            <div className="absolute -inset-1 bg-cyber-cyan/20 blur-lg rounded-full animate-pulse"></div>
-          </div>
-          <div>
-            <h1 className="font-serif font-bold text-gray-200 text-lg tracking-widest uppercase">クラウド社長室Z</h1>
-            <div className="flex items-center gap-2">
-               <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
-               <span className="text-[9px] font-mono tracking-widest text-cyber-cyan-light uppercase">Secure Live Sync Active</span>
-            </div>
+      <header className="flex-shrink-0 bg-presidential-navy/95 backdrop-blur-md border-b border-white/5 h-16 flex items-center justify-between px-4 md:px-6 z-10">
+        <div className="flex items-center gap-3 min-w-0">
+          <ShieldCheck className="text-cyber-cyan flex-shrink-0" size={28} aria-hidden />
+          <div className="min-w-0">
+            <h1 className="font-serif font-bold text-gray-100 text-base md:text-lg tracking-wide truncate">クラウド社長室Z</h1>
+            <p className="text-[10px] text-gray-500 truncate">{userProfile?.name || '社長'} · 秘書と会話</p>
           </div>
         </div>
-        <div className="flex items-center gap-4">
-           <button onClick={() => setShowHistory(true)} className="text-gray-400 hover:text-cyber-cyan transition-colors"><Clock size={22} /></button>
-           <button onClick={() => setShowFileWarehouse(true)} className="text-gray-400 hover:text-cyber-cyan transition-colors"><FolderOpen size={22} /></button>
-           <button onClick={() => setHasStarted(false)} className="text-gray-400 hover:text-white transition-colors"><Menu size={22} /></button>
-        </div>
+        <nav className="flex items-center gap-1 flex-shrink-0" aria-label="メイン操作">
+          <button type="button" onClick={() => setShowHistory(true)} className="p-2.5 rounded-lg text-gray-400 hover:text-cyber-cyan hover:bg-white/5 transition-colors" title="履歴"><Clock size={20} /></button>
+          <button type="button" onClick={() => setShowFileWarehouse(true)} className="p-2.5 rounded-lg text-gray-400 hover:text-cyber-cyan hover:bg-white/5 transition-colors" title="資料室"><FolderOpen size={20} /></button>
+          <button type="button" onClick={() => setHasStarted(false)} className="p-2.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors" title="メニュー"><Menu size={20} /></button>
+        </nav>
       </header>
 
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
@@ -187,23 +194,27 @@ const App: React.FC = () => {
              </div>
            </main>
            
-           <footer className="flex-shrink-0 bg-presidential-navy border-t border-white/5 p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
+           <footer className="flex-shrink-0 bg-presidential-navy border-t border-white/5 p-4 md:p-6">
              <div className="max-w-3xl mx-auto">
+               <p className="text-[10px] text-gray-500 mb-2 px-1">モード</p>
                <ModeSelector currentMode={mode} onModeChange={setMode} disabled={isLoading} />
-               <div className="relative flex items-center bg-gray-900/80 backdrop-blur-xl border border-white/10 rounded-2xl p-2 mt-4 focus-within:border-cyber-cyan/50 transition-all shadow-2xl">
-                 <button className="p-3 text-gray-500 hover:text-cyber-cyan transition-colors"><Paperclip size={22} /></button>
+               <p className="text-[10px] text-gray-500 mt-4 mb-2 px-1">指示を入力</p>
+               <div className="relative flex items-center bg-gray-900/90 border border-white/10 rounded-xl p-2 focus-within:border-cyber-cyan/50 focus-within:ring-1 focus-within:ring-cyber-cyan/20 transition-all">
                  <textarea
                    value={inputValue}
                    onChange={(e) => setInputValue(e.target.value)}
                    onKeyDown={(e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitMessage(inputValue.trim()); } }}
-                   placeholder="秘書への指示を入力してください..."
-                   className="flex-1 bg-transparent text-gray-100 placeholder-gray-700 p-2 resize-none outline-none font-sans text-base"
+                   placeholder="例: 本日の予定を表示 / 未読メールを確認"
+                   className="flex-1 bg-transparent text-gray-100 placeholder-gray-600 p-3 resize-none outline-none font-sans text-sm min-h-[44px]"
                    rows={1}
+                   aria-label="秘書への指示"
                  />
-                 <button 
-                   onClick={() => submitMessage(inputValue.trim())} 
-                   disabled={!inputValue.trim() || isLoading} 
-                   className="p-4 rounded-xl bg-cyber-cyan text-black hover:bg-cyber-cyan-light disabled:opacity-20 shadow-[0_0_20px_rgba(34,211,238,0.3)] transition-all"
+                 <button
+                   type="button"
+                   onClick={() => submitMessage(inputValue.trim())}
+                   disabled={!inputValue.trim() || isLoading}
+                   className="p-3 rounded-lg bg-cyber-cyan text-black hover:bg-cyber-cyan-light disabled:opacity-30 disabled:cursor-not-allowed transition-all flex-shrink-0"
+                   aria-label="送信"
                  >
                    <Send size={20} />
                  </button>

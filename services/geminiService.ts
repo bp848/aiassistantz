@@ -30,9 +30,15 @@ async function handleToolCall(fnName: string, args: any) {
     // MCP 実機接続を介して実行
     const mcpResult = await mcp.callTool(targetTool, args);
     return mcpResult;
-  } catch (error) {
+  } catch (error: any) {
     console.error(`[Tool Execution Failed] ${fnName}:`, error);
-    return { error: `MCP Tool Execution Failed: ${fnName}` };
+    const msg = error?.message ?? String(error);
+    const is401 = msg.includes('401') || msg.includes('Unauthorized') || msg.includes('同期サーバへの接続に失敗');
+    return {
+      error: is401
+        ? 'Google Workspace の認証が切れています。アプリの設定から「Google Workspace 連携」を再度実行してください。'
+        : `MCP Tool Execution Failed: ${fnName}`,
+    };
   }
 }
 
@@ -54,9 +60,22 @@ export const streamGeminiResponse = async (
         ? 'GEMINI_API_KEY が設定されていません。Vercel → Settings → Environment Variables に追加し、Redeploy してください。'
         : 'GEMINI_API_KEY が設定されていません。.env.local に Google AI Studio の API キーを設定し、開発サーバーを再起動してください。'
     ));
+    onFinish();
     return;
   }
   const ai = new GoogleGenAI({ apiKey });
+
+  const TIMEOUT_MS = 90000;
+  let finished = false;
+  const safeOnFinish = () => { if (!finished) { finished = true; onFinish(); } };
+  const safeOnChunk = (t: string) => { if (!finished) onChunk(t); };
+  const safeOnError = (e: Error) => { if (!finished) { finished = true; onError(e); onFinish(); } };
+  const timeoutId = setTimeout(() => {
+    if (finished) return;
+    finished = true;
+    onChunk('接続がタイムアウトしました。しばらく経ってからもう一度お試しください。');
+    onFinish();
+  }, TIMEOUT_MS);
 
   try {
     const modelName = mode === AgentMode.ADVISOR ? 'gemini-2.5-pro' : 'gemini-2.5-flash';
@@ -123,50 +142,46 @@ export const streamGeminiResponse = async (
       parts.push({ inlineData: { mimeType: attachment.mimeType, data: attachment.data } });
     }
 
-    // #region agent log
-    const _log = (loc: string, msg: string, data: Record<string, unknown>, hypothesisId: string) => {
-      const payload = { location: loc, message: msg, data, timestamp: Date.now(), sessionId: 'debug-session', runId: 'debug-run', hypothesisId };
-      fetch('http://127.0.0.1:7243/ingest/4a2ccbb4-5e92-40b2-81b8-7a683989d9bc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).catch(() => {});
-      try { console.log('[DEBUG]', JSON.stringify(payload)); } catch (_) {}
-    };
-    // #endregion
-
     // 初回はストリームを使わず sendMessage で一括応答 → function call の「直後」に関数応答を送る（400 回避）
     const firstResponse = await chat.sendMessage({ message: { parts } });
-    // #region agent log
-    _log('geminiService.ts', 'first sendMessage response', { hasText: !!firstResponse.text, fcCount: firstResponse.functionCalls?.length ?? 0 }, 'H1');
-    // #endregion
 
     const sendMessageLoop = async (response: any): Promise<void> => {
       if (!response.functionCalls?.length) return;
       const responseParts = [];
+      let hadToolError = false;
       for (const fc of response.functionCalls) {
         const res = await handleToolCall(fc.name, fc.args ?? {});
+        if (res && typeof res === 'object' && res.error) hadToolError = true;
         responseParts.push({
-          functionResponse: { id: fc.id, name: fc.name, response: { result: res } }
+          functionResponse: { name: fc.name, response: { result: res } }
         });
       }
-      const nextResponse = await chat.sendMessage({ message: { parts: responseParts } });
-      if (nextResponse.text) onChunk(nextResponse.text, (nextResponse as any).candidates?.[0]?.groundingMetadata);
+      const nextResponse = await chat.sendMessage({
+        message: { role: 'function', parts: responseParts }
+      });
+      if (nextResponse.text) {
+        safeOnChunk(nextResponse.text);
+      } else if (hadToolError) {
+        safeOnChunk('申し訳ありません。カレンダーやメールに接続できませんでした。**設定から「Google Workspace 連携」を再度実行**していただくか、しばらく経ってからお試しください。');
+      }
       if (nextResponse.functionCalls && nextResponse.functionCalls.length > 0) {
         await sendMessageLoop(nextResponse);
       }
     };
 
-    if (firstResponse.functionCalls && firstResponse.functionCalls.length > 0) {
-      await sendMessageLoop(firstResponse);
-    } else if (firstResponse.text) {
-      onChunk(firstResponse.text, (firstResponse as any).candidates?.[0]?.groundingMetadata);
+    try {
+      if (firstResponse.functionCalls && firstResponse.functionCalls.length > 0) {
+        await sendMessageLoop(firstResponse);
+      } else if (firstResponse.text) {
+        safeOnChunk(firstResponse.text);
+      }
+    } finally {
+      clearTimeout(timeoutId);
+      safeOnFinish();
     }
-    onFinish();
   } catch (e: any) {
-    // #region agent log
-    const errMsg = e?.message ?? e?.error?.message ?? String(e);
-    const errPayload = { location: 'geminiService.ts:catch', message: 'streamGeminiResponse error', data: { errorSnippet: errMsg.slice(0, 200), has400: errMsg.includes('400') || errMsg.includes('function response turn') }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'debug-run', hypothesisId: 'H1' };
-    fetch('http://127.0.0.1:7243/ingest/4a2ccbb4-5e92-40b2-81b8-7a683989d9bc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(errPayload) }).catch(() => {});
-    try { console.log('[DEBUG]', JSON.stringify(errPayload)); } catch (_) {}
-    // #endregion
-    const msg = errMsg;
+    clearTimeout(timeoutId);
+    const msg = e?.message ?? e?.error?.message ?? String(e);
     const is401 =
       msg.includes('401') ||
       msg.includes('UNAUTHENTICATED') ||
@@ -174,14 +189,14 @@ export const streamGeminiResponse = async (
       msg.includes('OAuth2 access token') ||
       msg.includes('CREDENTIALS_MISSING');
     if (is401) {
-      onError(new Error(
+      safeOnError(new Error(
         'Gemini API の認証に失敗しました（401）。必ず Google AI Studio で発行した API キーを使ってください。' +
         ' Google Cloud Console のキーは OAuth 前提のため使えません。' +
         ' https://aistudio.google.com/apikey で「Create API key」→ 新しいプロジェクトでキーを発行し、' +
         ' ローカルは .env.local の GEMINI_API_KEY、本番は Vercel の環境変数 GEMINI_API_KEY に設定して Redeploy してください。'
       ));
     } else {
-      onError(e);
+      safeOnError(e);
     }
   }
 };

@@ -38,16 +38,15 @@ const WorkspacePanel: React.FC<WorkspacePanelProps> = ({ mode, lastAiMessage, on
 
   if (![AgentMode.WRITER, AgentMode.RESEARCHER, AgentMode.ADVISOR, AgentMode.SECRETARY, AgentMode.SCHEDULE].includes(mode)) return null;
 
+  const isEmpty = dashboard && dashboard.events?.length === 0 && dashboard.emails?.length === 0;
+
   return (
-    <div className="w-full md:w-[45%] h-full shrink-0 border-l border-white/10 bg-[#080d1a] flex flex-col shadow-2xl z-30 animate-slideInRight">
+    <div className="w-full md:w-[45%] min-w-[320px] max-w-[480px] h-full shrink-0 border-l border-white/10 bg-[#080d1a] flex flex-col shadow-2xl z-30 animate-slideInRight">
       {/* ヘッダー */}
-      <div className="flex items-center justify-between px-6 py-5 border-b border-white/5 bg-gray-900/40 backdrop-blur-xl">
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <div className={`w-2.5 h-2.5 rounded-full ${isSyncing ? 'bg-yellow-500 animate-pulse' : 'bg-cyber-cyan'}`}></div>
-            <div className={`absolute -inset-1 rounded-full ${isSyncing ? 'bg-yellow-500/20' : 'bg-cyber-cyan/20'} animate-ping`}></div>
-          </div>
-          <span className="text-[10px] font-bold text-cyber-slate tracking-[0.3em] uppercase">エグゼクティブ・ワークスペース</span>
+      <div className="flex items-center justify-between px-5 py-4 border-b border-white/5 bg-gray-900/40 backdrop-blur-xl">
+        <div className="flex items-center gap-2">
+          <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isSyncing ? 'bg-amber-400 animate-pulse' : 'bg-emerald-500'}`} />
+          <span className="text-xs font-medium text-gray-300">予定・メール</span>
         </div>
         <div className="flex items-center gap-4">
            <button onClick={refreshData} className={`text-gray-500 hover:text-cyber-cyan transition-all ${isSyncing ? 'animate-spin' : ''}`}>
@@ -59,23 +58,46 @@ const WorkspacePanel: React.FC<WorkspacePanelProps> = ({ mode, lastAiMessage, on
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto bg-[#080d1a] custom-scrollbar">
+      <div className="flex-1 overflow-y-auto bg-[#080d1a]">
         {(mode === AgentMode.SECRETARY || mode === AgentMode.SCHEDULE) && dashboard && (
-          <div className="p-6 space-y-10">
+          <div className="p-5 space-y-8">
+            {/* 空状態: 説明とクイックアクション */}
+            {isEmpty && (
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6 space-y-4">
+                <p className="text-sm text-gray-400 leading-relaxed">
+                  ここには、秘書が取得した<strong className="text-gray-300">本日の予定</strong>と<strong className="text-gray-300">メール一覧</strong>が表示されます。
+                </p>
+                <p className="text-xs text-gray-500">
+                  左の入力欄で例えば次のように送ると反映されます。
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {onActionSelect && (
+                    <>
+                      <button type="button" onClick={() => onActionSelect('本日の予定を一覧で表示')} className="px-4 py-2 rounded-full bg-cyber-cyan/20 text-cyber-cyan text-xs font-medium hover:bg-cyber-cyan/30 transition-colors border border-cyber-cyan/30">本日の予定を表示</button>
+                      <button type="button" onClick={() => onActionSelect('未読メールを確認して')} className="px-4 py-2 rounded-full bg-white/10 text-gray-300 text-xs font-medium hover:bg-white/15 transition-colors border border-white/10">未読メールを確認</button>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* タイムライン・カレンダー */}
             <section className="animate-fadeIn">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-2 text-cyber-cyan">
-                  <Calendar size={20} />
-                  <h3 className="font-serif font-bold text-base tracking-widest uppercase">本日の予定</h3>
-                </div>
-                <span className="text-[10px] text-gray-500 font-mono">{new Date().toLocaleDateString('ja-JP', { weekday: 'long' })}</span>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-200">
+                  <Calendar size={18} className="text-cyber-cyan" />
+                  本日の予定
+                </h3>
+                <span className="text-[10px] text-gray-500">{new Date().toLocaleDateString('ja-JP', { weekday: 'short' })}</span>
               </div>
               
-              <div className="relative pl-6 space-y-6">
-                <div className="absolute left-[7px] top-1 bottom-1 w-px bg-gradient-to-b from-cyber-cyan/50 via-cyber-cyan/10 to-transparent"></div>
+              <div className="relative pl-5 space-y-4">
+                <div className="absolute left-[5px] top-1 bottom-1 w-px bg-white/10" />
                 
-                {dashboard.events.map((evt: any) => (
+                {!isEmpty && dashboard.events?.length === 0 ? (
+                  <p className="text-xs text-gray-500 py-2">予定はありません。「本日の予定を表示」と送ると取得できます。</p>
+                ) : null}
+                {(dashboard.events || []).map((evt: any) => (
                   <div key={evt.id} className="relative group">
                     <div className={`absolute -left-[23px] top-1.5 w-2.5 h-2.5 rounded-full border-2 border-[#080d1a] ${evt.account === 'personal' ? 'bg-blue-500' : 'bg-cyber-cyan'} group-hover:scale-125 transition-transform`}></div>
                     <div className={`p-4 rounded-2xl border transition-all hover:bg-white/5 ${evt.account === 'personal' ? 'bg-blue-500/5 border-blue-500/20' : 'bg-white/[0.02] border-white/5'}`}>
@@ -92,11 +114,15 @@ const WorkspacePanel: React.FC<WorkspacePanelProps> = ({ mode, lastAiMessage, on
             </section>
 
             {/* メール受信トレイ */}
-            <section className="animate-fadeIn" style={{ animationDelay: '0.2s' }}>
-              <div className="flex items-center gap-2 text-red-400 mb-6">
-                <Mail size={20} />
-                <h3 className="font-serif font-bold text-base tracking-widest uppercase">受信トレイ</h3>
-              </div>
+            <section className="animate-fadeIn">
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-200 mb-4">
+                <Mail size={18} className="text-rose-400/90" />
+                受信トレイ
+              </h3>
+              
+              {!isEmpty && dashboard.emails?.length === 0 && !selectedEmail ? (
+                <p className="text-xs text-gray-500 py-2">メール一覧はここに表示されます。「未読メールを確認」と送ってください。</p>
+              ) : null}
               
               {selectedEmail ? (
                 <div className="bg-gray-900/60 border border-white/10 rounded-3xl overflow-hidden animate-fadeIn">
@@ -127,8 +153,8 @@ const WorkspacePanel: React.FC<WorkspacePanelProps> = ({ mode, lastAiMessage, on
                    </div>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {dashboard.emails.map((mail: any) => (
+                <div className="space-y-2">
+                  {(dashboard.emails || []).map((mail: any) => (
                     <div 
                       key={mail.id} 
                       onClick={() => setSelectedEmail(mail)}
@@ -170,16 +196,10 @@ const WorkspacePanel: React.FC<WorkspacePanelProps> = ({ mode, lastAiMessage, on
         )}
       </div>
 
-      {/* フッターステータス */}
-      <div className="px-6 py-4 border-t border-white/5 bg-black/60 flex items-center justify-between font-mono text-[10px] text-gray-600 tracking-widest">
-         <div className="flex items-center gap-1.5">
-           <Clock size={12} />
-           <span>同期時刻: {new Date().toLocaleTimeString()}</span>
-         </div>
-         <div className="flex items-center gap-2">
-           <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
-           <span>L5 暗号化済み</span>
-         </div>
+      {/* フッター */}
+      <div className="px-4 py-3 border-t border-white/5 bg-black/40 flex items-center justify-between text-[10px] text-gray-500">
+         <span>更新: {new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}</span>
+         <button type="button" onClick={refreshData} className="text-gray-500 hover:text-cyber-cyan transition-colors" title="再取得">再取得</button>
       </div>
     </div>
   );
